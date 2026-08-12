@@ -21,6 +21,7 @@ dist/
 .pytest_cache/
 .coverage
 htmlcov/
+snapshots/
 
 # Logs
 *.log

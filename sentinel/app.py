@@ -1,5 +1,6 @@
 from sentinel.config import load_config
 from sentinel.ha.client import HomeAssistantClient
+from sentinel.storage.snapshots import SnapshotStorage
 
 def main():
     config = load_config()
@@ -9,9 +10,7 @@ def main():
         config.homeassistant.token,
     )
     
-    image = client.get_snapshot(
-        config.cameras[0].entity
-    )
-    
-    with open("snapshot.jpg", "wb") as f:
-        f.write(image)
+    storage = SnapshotStorage(config.storage.path)
+    for camera in config.cameras:
+        image = client.get_snapshot(camera.entity)
+        storage.save(camera.name, image)
