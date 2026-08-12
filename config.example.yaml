@@ -1,0 +1,24 @@
+homeassistant:
+  url: http://192.168.1.252:8123
+  token: YOUR_LONG_TOKEN
+
+detector:
+  backend: codeproject
+  url: http://codeproject:32168
+
+storage:
+  path: ./snapshots
+
+cameras:
+
+  - entity: camera.sannce_1
+    name: Front Door
+    interval: 10
+
+  - entity: camera.sannce_2
+    name: Driveway
+    interval: 10
+
+  - entity: camera.reolink_fluent
+    name: Garden
+    interval: 5
