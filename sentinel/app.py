@@ -1,9 +1,17 @@
 import time
 
+import httpx
+
+from sentinel.camera import CameraState
 from sentinel.config import load_config
 from sentinel.ha.client import HomeAssistantClient
-from sentinel.storage.snapshots import SnapshotStorage
 from sentinel.inference.client import InferenceClient
+from sentinel.storage.snapshots import SnapshotStorage
+
+
+IDLE_INTERVAL = 15
+ACTIVE_INTERVAL = 5
+ERROR_INTERVAL = 15
 
 
 def main():
@@ -20,14 +28,19 @@ def main():
         config.detector.url,
     )
 
+    states = {
+        camera.name: CameraState()
+        for camera in config.cameras
+    }
+
+    next_poll = {
+        camera.name: 0.0
+        for camera in config.cameras
+    }
+
     print("Sentinel starting...")
     print(f"HA: {config.homeassistant.url}")
     print(f"Cameras: {len(config.cameras)}")
-
-    next_poll = {
-        camera.name: 0
-        for camera in config.cameras
-    }
 
     while True:
         now = time.monotonic()
@@ -36,34 +49,73 @@ def main():
             if now < next_poll[camera.name]:
                 continue
 
+            state = states[camera.name]
+
             print(f"\nProcessing {camera.name}...")
 
-            image = client.get_snapshot(camera.entity)
+            try:
+                image = client.get_snapshot(camera.entity)
 
-            detections = inference.detect(image)
+                detections = inference.detect(image)
 
-            interesting = [
-                detection
-                for detection in detections
-                if (
-                    detection.label in camera.objects
-                    and detection.confidence >= config.detector.confidence
-                )
-            ]
-
-            if interesting:
-                storage.save(camera.name, image)
-
-                for detection in interesting:
-                    print(
-                        f"  {detection.label}: "
-                        f"{detection.confidence:.2f}"
+                interesting = [
+                    detection
+                    for detection in detections
+                    if (
+                        detection.label in camera.objects
+                        and detection.confidence
+                        >= config.detector.confidence
                     )
-            else:
-                print("  No interesting detections")
+                ]
+
+                changed = state.update(interesting)
+
+                if changed:
+                    storage.save(camera.name, image)
+
+                    print("  Activity:")
+
+                    for detection in changed:
+                        print(
+                            f"    {detection.label}: "
+                            f"{detection.confidence:.2f}"
+                        )
+
+                elif interesting:
+                    print(
+                        "  Objects stationary - "
+                        "duplicate suppressed"
+                    )
+
+                else:
+                    print("  No interesting detections")
+
+                if state.is_active():
+                    interval = ACTIVE_INTERVAL
+                else:
+                    interval = IDLE_INTERVAL
+
+            except httpx.HTTPStatusError as error:
+                print(
+                    f"  ERROR: Home Assistant returned "
+                    f"HTTP {error.response.status_code}"
+                )
+                interval = ERROR_INTERVAL
+
+            except httpx.RequestError as error:
+                print(
+                    f"  ERROR: Network error: {error}"
+                )
+                interval = ERROR_INTERVAL
+
+            except Exception as error:
+                print(
+                    f"  ERROR: Unexpected error: {error}"
+                )
+                interval = ERROR_INTERVAL
 
             next_poll[camera.name] = (
-                time.monotonic() + camera.interval
+                time.monotonic() + interval
             )
 
         time.sleep(0.1)
