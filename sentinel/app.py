@@ -1,3 +1,5 @@
+import time
+
 from sentinel.config import load_config
 from sentinel.ha.client import HomeAssistantClient
 from sentinel.storage.snapshots import SnapshotStorage
@@ -22,29 +24,46 @@ def main():
     print(f"HA: {config.homeassistant.url}")
     print(f"Cameras: {len(config.cameras)}")
 
-    for camera in config.cameras:
-        print(f"\nProcessing {camera.name}...")
+    next_poll = {
+        camera.name: 0
+        for camera in config.cameras
+    }
 
-        image = client.get_snapshot(camera.entity)
+    while True:
+        now = time.monotonic()
 
-        detections = inference.detect(image)
+        for camera in config.cameras:
+            if now < next_poll[camera.name]:
+                continue
 
-        interesting = [
-            detection
-            for detection in detections
-            if (
-                detection.label in camera.objects
-                and detection.confidence >= config.detector.confidence
-            )
-        ]
+            print(f"\nProcessing {camera.name}...")
 
-        if interesting:
-            storage.save(camera.name, image)
+            image = client.get_snapshot(camera.entity)
 
-            for detection in interesting:
-                print(
-                    f"  {detection.label}: "
-                    f"{detection.confidence:.2f}"
+            detections = inference.detect(image)
+
+            interesting = [
+                detection
+                for detection in detections
+                if (
+                    detection.label in camera.objects
+                    and detection.confidence >= config.detector.confidence
                 )
-        else:
-            print("  No interesting detections")
+            ]
+
+            if interesting:
+                storage.save(camera.name, image)
+
+                for detection in interesting:
+                    print(
+                        f"  {detection.label}: "
+                        f"{detection.confidence:.2f}"
+                    )
+            else:
+                print("  No interesting detections")
+
+            next_poll[camera.name] = (
+                time.monotonic() + camera.interval
+            )
+
+        time.sleep(0.1)
