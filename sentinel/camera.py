@@ -5,9 +5,6 @@ import time
 from sentinel.detection import Detection
 
 
-MOVEMENT_THRESHOLD = 30
-
-
 @dataclass
 class TrackedObject:
     label: str
@@ -18,6 +15,7 @@ class TrackedObject:
 
 @dataclass
 class CameraState:
+    movement_threshold: float
     objects: list[TrackedObject] = field(default_factory=list)
 
     def update(self, detections: list[Detection]) -> list[Detection]:
@@ -50,7 +48,7 @@ class CameraState:
                     center_y - match.center_y,
                 )
 
-                if distance >= MOVEMENT_THRESHOLD:
+                if distance >= self.movement_threshold:
                     changed.append(detection)
 
             new_objects.append(

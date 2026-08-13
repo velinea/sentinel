@@ -1,3 +1,4 @@
+import logging
 import time
 
 import httpx
@@ -6,15 +7,16 @@ from sentinel.camera import CameraState
 from sentinel.config import load_config
 from sentinel.ha.client import HomeAssistantClient
 from sentinel.inference.client import InferenceClient
+from sentinel.logging import setup_logging
 from sentinel.storage.snapshots import SnapshotStorage
 
 
-IDLE_INTERVAL = 15
-ACTIVE_INTERVAL = 5
-ERROR_INTERVAL = 15
+logger = logging.getLogger(__name__)
 
 
 def main():
+    setup_logging()
+
     config = load_config()
 
     client = HomeAssistantClient(
@@ -29,7 +31,9 @@ def main():
     )
 
     states = {
-        camera.name: CameraState()
+        camera.name: CameraState(
+            config.tracking.movement_threshold
+        )
         for camera in config.cameras
     }
 
@@ -38,9 +42,9 @@ def main():
         for camera in config.cameras
     }
 
-    print("Sentinel starting...")
-    print(f"HA: {config.homeassistant.url}")
-    print(f"Cameras: {len(config.cameras)}")
+    logger.info("Sentinel starting")
+    logger.info("HA: %s", config.homeassistant.url)
+    logger.info("Cameras: %d", len(config.cameras))
 
     while True:
         now = time.monotonic()
@@ -51,10 +55,15 @@ def main():
 
             state = states[camera.name]
 
-            print(f"\nProcessing {camera.name}...")
+            logger.info(
+                "Processing %s",
+                camera.name,
+            )
 
             try:
-                image = client.get_snapshot(camera.entity)
+                image = client.get_snapshot(
+                    camera.entity
+                )
 
                 detections = inference.detect(image)
 
@@ -71,48 +80,76 @@ def main():
                 changed = state.update(interesting)
 
                 if changed:
-                    storage.save(camera.name, image)
+                    if config.storage.save_detections:
+                        filename = storage.save(
+                            camera.name,
+                            image,
+                        )
 
-                    print("  Activity:")
-
-                    for detection in changed:
-                        print(
-                            f"    {detection.label}: "
-                            f"{detection.confidence:.2f}"
+                        logger.info(
+                            "Activity detected: %s "
+                            "→ saved %s",
+                            ", ".join(
+                                detection.label
+                                for detection in changed
+                            ),
+                            filename,
+                        )
+                    else:
+                        logger.info(
+                            "Activity detected: %s",
+                            ", ".join(
+                                detection.label
+                                for detection in changed
+                            ),
                         )
 
                 elif interesting:
-                    print(
-                        "  Objects stationary - "
+                    logger.info(
+                        "Objects stationary - "
                         "duplicate suppressed"
                     )
 
                 else:
-                    print("  No interesting detections")
+                    logger.info(
+                        "No interesting detections"
+                    )
 
                 if state.is_active():
-                    interval = ACTIVE_INTERVAL
+                    interval = (
+                        config.polling.active_interval
+                    )
                 else:
-                    interval = IDLE_INTERVAL
+                    interval = (
+                        config.polling.idle_interval
+                    )
 
             except httpx.HTTPStatusError as error:
-                print(
-                    f"  ERROR: Home Assistant returned "
-                    f"HTTP {error.response.status_code}"
+                logger.error(
+                    "%s: Home Assistant returned "
+                    "HTTP %s",
+                    camera.name,
+                    error.response.status_code,
                 )
-                interval = ERROR_INTERVAL
+
+                interval = config.polling.error_interval
 
             except httpx.RequestError as error:
-                print(
-                    f"  ERROR: Network error: {error}"
+                logger.error(
+                    "%s: Network error: %s",
+                    camera.name,
+                    error,
                 )
-                interval = ERROR_INTERVAL
 
-            except Exception as error:
-                print(
-                    f"  ERROR: Unexpected error: {error}"
+                interval = config.polling.error_interval
+
+            except Exception:
+                logger.exception(
+                    "%s: Unexpected error",
+                    camera.name,
                 )
-                interval = ERROR_INTERVAL
+
+                interval = config.polling.error_interval
 
             next_poll[camera.name] = (
                 time.monotonic() + interval

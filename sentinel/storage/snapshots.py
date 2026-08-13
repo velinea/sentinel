@@ -1,15 +1,32 @@
+from datetime import datetime
 from pathlib import Path
 
 
 class SnapshotStorage:
-
     def __init__(self, base_path: str):
         self.base_path = Path(base_path)
-        self.base_path.mkdir(parents=True, exist_ok=True)
+        self.base_path.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
     def save(self, camera_name: str, image: bytes):
+        camera_path = self.base_path / camera_name
 
-        filename = self.base_path / f"{camera_name}.jpg"
+        camera_path.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
-        with filename.open("wb") as f:
-            f.write(image)
+        timestamp = datetime.now().strftime(
+            "%Y%m%d_%H%M%S"
+        )
+
+        filename = (
+            camera_path
+            / f"{timestamp}.jpg"
+        )
+
+        filename.write_bytes(image)
+
+        return filename
