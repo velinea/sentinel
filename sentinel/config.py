@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from datetime import datetime
+
 import yaml
 
 
@@ -15,28 +15,28 @@ class CameraConfig:
     name: str
     entity: str
     interval: int
+    objects: list[str]
+
 
 @dataclass
 class DetectorConfig:
     backend: str
     url: str
+    confidence: float
+
 
 @dataclass
 class StorageConfig:
     path: str
 
-@dataclass
-class Snapshot:
-    camera: str
-    timestamp: datetime
-    image: bytes
 
 @dataclass
 class Config:
     homeassistant: HomeAssistantConfig
+    cameras: list[CameraConfig]
     detector: DetectorConfig
     storage: StorageConfig
-    cameras: list[CameraConfig]
+
 
 def load_config(filename="config.yaml") -> Config:
     with open(filename, "r") as f:
@@ -44,10 +44,10 @@ def load_config(filename="config.yaml") -> Config:
 
     return Config(
         homeassistant=HomeAssistantConfig(**raw["homeassistant"]),
-        detector=DetectorConfig(**raw["detector"]),
-        storage=StorageConfig(**raw["storage"]),
         cameras=[
             CameraConfig(**camera)
             for camera in raw["cameras"]
         ],
+        detector=DetectorConfig(**raw["detector"]),
+        storage=StorageConfig(**raw["storage"]),
     )

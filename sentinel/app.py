@@ -27,8 +27,24 @@ def main():
 
         image = client.get_snapshot(camera.entity)
 
-        storage.save(camera.name, image)
-
         detections = inference.detect(image)
 
-        print(f"Detections: {detections}")
+        interesting = [
+            detection
+            for detection in detections
+            if (
+                detection.label in camera.objects
+                and detection.confidence >= config.detector.confidence
+            )
+        ]
+
+        if interesting:
+            storage.save(camera.name, image)
+
+            for detection in interesting:
+                print(
+                    f"  {detection.label}: "
+                    f"{detection.confidence:.2f}"
+                )
+        else:
+            print("  No interesting detections")
