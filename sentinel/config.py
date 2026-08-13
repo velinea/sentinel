@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from datetime import datetime
 import yaml
 
 
@@ -23,6 +24,12 @@ class DetectorConfig:
 @dataclass
 class StorageConfig:
     path: str
+
+@dataclass
+class Snapshot:
+    camera: str
+    timestamp: datetime
+    image: bytes
 
 @dataclass
 class Config:
