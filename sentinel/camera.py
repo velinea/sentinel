@@ -1,6 +1,6 @@
-from dataclasses import dataclass, field
 import math
 import time
+from dataclasses import dataclass, field
 
 from sentinel.detection import Detection
 

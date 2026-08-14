@@ -10,7 +10,6 @@ from sentinel.inference.client import InferenceClient
 from sentinel.logging import setup_logging
 from sentinel.storage.snapshots import SnapshotStorage
 
-
 logger = logging.getLogger(__name__)
 
 

@@ -22,11 +22,10 @@ class SnapshotStorage:
             "%Y%m%d_%H%M%S"
         )
 
-        filename = (
-            camera_path
-            / f"{timestamp}.jpg"
-        )
+        filename = camera_path / f"{timestamp}.jpg"
+        latest = camera_path / "latest.jpg"
 
         filename.write_bytes(image)
+        latest.write_bytes(image)
 
         return filename
