@@ -1,24 +1,54 @@
 homeassistant:
-  url: http://192.168.1.252:8123
+  url: http://<HOMEASSISTANT_IP>:8123
   token: YOUR_LONG_TOKEN
 
-detector:
-  backend: codeproject
-  url: http://codeproject:32168
+inference:
+  backend: yolo
+  url: http://<SENTINEL-INFERENCE_IP>:8000
+  min_confidence: 0.7
+  
+polling:
+  idle_interval: 5
+  active_interval: 3
+  error_interval: 15
+
+activity:
+  movement_threshold: 30
 
 storage:
-  path: ./snapshots
+  path: "/PATH/TO/snapshots"
+  save_detections: true
 
 cameras:
+  - name: front_door
+    entity: camera.terassi_sannce_1
+    objects:
+      - person
+      - cat
 
-  - entity: camera.sannce_1
-    name: Front Door
-    interval: 10
+  - name: front_yard
+    entity: camera.piha_sannce_2
+    objects:
+      - person
+      - car
 
-  - entity: camera.sannce_2
-    name: Driveway
-    interval: 10
+  - name: garage
+    entity: camera.piha_sannce_3
+    objects:
+      - person
+      - car
+      - truck
 
-  - entity: camera.reolink_fluent
-    name: Garden
-    interval: 5
+  - name: driveway
+    entity: camera.piha_sannce_4
+    objects:
+      - person
+      - car
+      - truck
+
+  - name: garden
+    entity: camera.reolink_fluent
+    objects:
+      - person
+      - dog
+      - cat

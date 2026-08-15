@@ -1,4 +1,3 @@
-from html import entities
 import logging
 import time
 
@@ -32,7 +31,7 @@ def main():
 
     states = {
         camera.name: CameraState(
-            config.tracking.movement_threshold
+            config.activity.movement_threshold
         )
         for camera in config.cameras
     }
@@ -79,7 +78,7 @@ def main():
                     if (
                         detection.label in camera.objects
                         and detection.confidence
-                        >= config.inference.confidence
+                        >= config.inference.min_confidence
                     )
                 ]
 

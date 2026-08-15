@@ -25,7 +25,7 @@ class PollingConfig(BaseModel):
     error_interval: int = Field(gt=0)
 
 
-class TrackingConfig(BaseModel):
+class ActivityConfig(BaseModel):
     movement_threshold: float = Field(ge=0.0)
 
 
@@ -39,7 +39,7 @@ class Config(BaseModel):
     cameras: list[CameraConfig]
     inference: InferenceConfig
     polling: PollingConfig
-    tracking: TrackingConfig
+    activity: ActivityConfig
     storage: StorageConfig
 
 def load_config(filename="config.yaml") -> Config:
