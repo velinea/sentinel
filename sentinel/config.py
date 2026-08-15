@@ -16,7 +16,7 @@ class CameraConfig(BaseModel):
 class InferenceConfig(BaseModel):
     backend: str
     url: str
-    confidence: float = Field(ge=0.0, le=1.0)
+    min_confidence: float = Field(ge=0.0, le=1.0)
 
 
 class PollingConfig(BaseModel):
