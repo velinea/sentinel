@@ -1,3 +1,4 @@
+from html import entities
 import logging
 import time
 
@@ -46,9 +47,11 @@ def main():
     logger.info("Cameras: %d", len(config.cameras))
     camera_entities = client.get_camera_entities()
     logger.info("Discovered cameras:")
+
     for entity in camera_entities:
         logger.info("  %s", entity)
-        
+
+
     while True:
         now = time.monotonic()
 

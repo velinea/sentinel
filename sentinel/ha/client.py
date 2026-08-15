@@ -31,6 +31,9 @@ class HomeAssistantClient:
 
         response.raise_for_status()
         entities = response.json()
+        for entity in entities:
+            if entity["entity_id"].startswith("camera."):
+                print(entity["entity_id"], entity["attributes"]["entity_picture"].partition("?")[0])
         camera_entities = [
             entity["entity_id"]
             for entity in entities
