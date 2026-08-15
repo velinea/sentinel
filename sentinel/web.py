@@ -3,7 +3,6 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
-
 SNAPSHOT_PATH = "/home/sentinel/sentinel/snapshots"
 
 
