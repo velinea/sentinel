@@ -26,7 +26,7 @@ def main():
     storage = SnapshotStorage(config.storage.path)
 
     inference = InferenceClient(
-        config.detector.url,
+        config.inference.url,
     )
 
     states = {
@@ -72,7 +72,7 @@ def main():
                     if (
                         detection.label in camera.objects
                         and detection.confidence
-                        >= config.detector.confidence
+                        >= config.inference.confidence
                     )
                 ]
 

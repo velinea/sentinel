@@ -1,80 +1,49 @@
-from dataclasses import dataclass
-from pathlib import Path
-
 import yaml
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class HomeAssistantConfig:
+class HomeAssistantConfig(BaseModel):
     url: str
     token: str
 
 
-@dataclass
-class CameraConfig:
+class CameraConfig(BaseModel):
     name: str
     entity: str
     objects: list[str]
-    interval: int = 10
 
 
-@dataclass
-class DetectorConfig:
+class InferenceConfig(BaseModel):
     backend: str
     url: str
-    confidence: float
+    confidence: float = Field(ge=0.0, le=1.0)
 
 
-@dataclass
-class PollingConfig:
-    idle_interval: int
-    active_interval: int
-    error_interval: int
+class PollingConfig(BaseModel):
+    idle_interval: int = Field(gt=0)
+    active_interval: int = Field(gt=0)
+    error_interval: int = Field(gt=0)
 
 
-@dataclass
-class TrackingConfig:
-    movement_threshold: float
+class TrackingConfig(BaseModel):
+    movement_threshold: float = Field(ge=0.0)
 
 
-@dataclass
-class StorageConfig:
+class StorageConfig(BaseModel):
     path: str
     save_detections: bool
 
 
-@dataclass
-class Config:
+class Config(BaseModel):
     homeassistant: HomeAssistantConfig
     cameras: list[CameraConfig]
-    detector: DetectorConfig
+    inference: InferenceConfig
     polling: PollingConfig
     tracking: TrackingConfig
     storage: StorageConfig
-
 
 def load_config(filename="config.yaml") -> Config:
     with open(filename, "r") as f:
         raw = yaml.safe_load(f)
 
-    return Config(
-        homeassistant=HomeAssistantConfig(
-            **raw["homeassistant"]
-        ),
-        cameras=[
-            CameraConfig(**camera)
-            for camera in raw["cameras"]
-        ],
-        detector=DetectorConfig(
-            **raw["detector"]
-        ),
-        polling=PollingConfig(
-            **raw["polling"]
-        ),
-        tracking=TrackingConfig(
-            **raw["tracking"]
-        ),
-        storage=StorageConfig(
-            **raw["storage"]
-        ),
-    )
+    return Config.model_validate(raw)
