@@ -71,10 +71,13 @@ cameras:
 #       - person
 #       - cat
 
-# Example: notifications + retention
+# Example: detect sub-stream, save main stream
 # cameras:
 #   - name: front_door
 #     entity: camera.terassi_sannce_1
+#     source: go2rtc
+#     go2rtc_src: cam0_sub
+#     go2rtc_save_src: cam0
 #     notify: true
 #     notify_title: "Front Door"
 #     objects:

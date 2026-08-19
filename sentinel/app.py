@@ -30,6 +30,7 @@ def build_sources(config):
     )
 
     sources: dict[str, SnapshotSource] = {}
+    save_sources: dict[str, SnapshotSource] = {}
 
     for camera in config.cameras:
         if camera.source == "go2rtc":
@@ -52,7 +53,19 @@ def build_sources(config):
                 ha_client, camera.entity
             )
 
-    return ha_client, sources
+        if camera.go2rtc_save_src is not None:
+            if config.go2rtc is None:
+                raise ValueError(
+                    f"Camera '{camera.name}' requires go2rtc "
+                    "for go2rtc_save_src but no go2rtc "
+                    "config found"
+                )
+            save_sources[camera.name] = Go2rtcSource(
+                config.go2rtc.url,
+                camera.go2rtc_save_src,
+            )
+
+    return ha_client, sources, save_sources
 
 
 def main():
@@ -60,7 +73,7 @@ def main():
 
     setup_logging(config.logging.level)
 
-    ha_client, sources = build_sources(config)
+    ha_client, sources, save_sources = build_sources(config)
 
     storage = SnapshotStorage(config.storage.path)
 
@@ -135,9 +148,27 @@ def main():
 
                 if changed:
                     if config.storage.save_detections:
+                        save_image = image
+
+                        if camera.name in save_sources:
+                            try:
+                                save_image = (
+                                    save_sources[
+                                        camera.name
+                                    ].get_snapshot()
+                                )
+                            except Exception:
+                                logger.warning(
+                                    "%s: Save source "
+                                    "fetch failed, "
+                                    "using detection "
+                                    "image",
+                                    camera.name,
+                                )
+
                         filename = storage.save(
                             camera.name,
-                            image,
+                            save_image,
                         )
 
                         logger.info(

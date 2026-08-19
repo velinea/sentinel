@@ -151,6 +151,7 @@ cameras:
 | objects | Object labels that trigger a detection |
 | source | Snapshot source: `ha` (default) or `go2rtc` |
 | go2rtc_src | go2rtc stream name (required when `source: go2rtc`) |
+| go2rtc_save_src | go2rtc stream name for high-res saves (optional) |
 | notify | Send a Home Assistant notification on activity (default: `false`) |
 | notify_title | Custom notification title (defaults to camera name) |
 
@@ -191,6 +192,29 @@ cameras:
 
 The `go2rtc_src` value corresponds to the stream name in your go2rtc configuration. You can mix HA and go2rtc sources across cameras.
 
+#### High-res archive snapshots
+
+By default, Sentinel saves the same snapshot used for detection. If you detect on a sub-stream (fast, low bandwidth), the saved image will also be sub-stream quality.
+
+To save high-res snapshots from the main stream while detecting on the sub-stream, set `go2rtc_save_src`:
+
+```yaml
+go2rtc:
+  url: http://localhost:1984
+
+cameras:
+  - name: front_door
+    entity: camera.terassi_sannce_1
+    source: go2rtc
+    go2rtc_src: cam0_sub
+    go2rtc_save_src: cam0
+    objects:
+      - person
+      - cat
+```
+
+When activity is detected, Sentinel fetches a fresh frame from the main stream before saving. The second fetch only happens on actual detections, so idle polling remains fast. If the main stream fetch fails, Sentinel falls back to saving the detection image and logs a warning.
+
 ## Complete example
 
 ```yaml
@@ -227,6 +251,7 @@ cameras:
     entity: camera.terassi_sannce_1
     source: go2rtc
     go2rtc_src: cam0_sub
+    go2rtc_save_src: cam0
     notify: true
     notify_title: "Front Door"
     objects:
