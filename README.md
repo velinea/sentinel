@@ -140,4 +140,4 @@ Additional documentation is available in the `docs` directory.
 
 ## License
 
-*TBD*
+[MIT](LICENCE)

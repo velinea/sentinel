@@ -96,10 +96,10 @@ Activate it:
 source venv/bin/activate
 ```
 
-Install dependencies:
+Install Sentinel in editable mode:
 
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ---
@@ -133,21 +133,22 @@ http://<inference-server>:8000
 Copy the example configuration:
 
 ```bash
-cp config-example.yaml config.yaml
+cp config.example.yaml config.yaml
 ```
 
 Edit the configuration:
 
 ```yaml
-home_assistant:
+homeassistant:
   url: http://homeassistant:8123
   token: YOUR_LONG_LIVED_ACCESS_TOKEN
 
 inference:
   url: http://sentinel-inference:8000
+  min_confidence: 0.7
 ```
 
-Configure your cameras and interesting objects.
+Configure your cameras and interesting objects. See [configuration.md](configuration.md) for all options.
 
 ---
 
@@ -156,13 +157,19 @@ Configure your cameras and interesting objects.
 Start the detector:
 
 ```bash
-python sentinel.py
+sentinel
 ```
 
-Start the HTTP service:
+Or as a module:
 
 ```bash
-python sentinel-http.py
+python -m sentinel
+```
+
+Start the HTTP server:
+
+```bash
+uvicorn sentinel.web:app --host 0.0.0.0 --port 8080
 ```
 
 ---
@@ -171,12 +178,40 @@ python sentinel-http.py
 
 Sentinel is intended to run as system services.
 
-Typical installation:
+Create `/etc/systemd/system/sentinel.service`:
 
+```ini
+[Unit]
+Description=Sentinel Object Detection
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/sentinel/sentinel
+ExecStart=/home/sentinel/sentinel/venv/bin/sentinel
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
 ```
-sentinel.service
-sentinel-http.service
-sentinel-inference.service
+
+Create `/etc/systemd/system/sentinel-http.service`:
+
+```ini
+[Unit]
+Description=Sentinel HTTP Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/sentinel/sentinel
+ExecStart=/home/sentinel/sentinel/venv/bin/uvicorn sentinel.web:app --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 Enable automatic startup:
@@ -184,7 +219,6 @@ Enable automatic startup:
 ```bash
 sudo systemctl enable sentinel
 sudo systemctl enable sentinel-http
-sudo systemctl enable sentinel-inference
 ```
 
 Start the services:
@@ -192,14 +226,17 @@ Start the services:
 ```bash
 sudo systemctl start sentinel
 sudo systemctl start sentinel-http
-sudo systemctl start sentinel-inference
 ```
 
 ---
 
 # Home Assistant
 
-Add Generic Camera entities pointing to Sentinel's HTTP server.
+Add Generic Camera entities pointing to Sentinel's HTTP server:
+
+```
+http://<sentinel-host>:8080/latest/front_door.jpg
+```
 
 Each configured camera exposes the latest interesting detection.
 
@@ -224,6 +261,6 @@ When Sentinel starts correctly you should observe:
 
 Continue with:
 
-- Configuration
-- Home Assistant integration
-- Troubleshooting
+- [Configuration](configuration.md)
+- [Architecture](architecture.md)
+- [Developer notes](developer-notes.md)
