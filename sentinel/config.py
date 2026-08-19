@@ -50,6 +50,10 @@ class StorageConfig(BaseModel):
     max_snapshots_per_camera: int | None = None
 
 
+class NotificationConfig(BaseModel):
+    image_base_url: str | None = None
+
+
 class Config(BaseModel):
     homeassistant: HomeAssistantConfig
     cameras: list[CameraConfig]
@@ -59,6 +63,7 @@ class Config(BaseModel):
     storage: StorageConfig
     go2rtc: Go2rtcConfig | None = None
     logging: LoggingConfig = LoggingConfig()
+    notification: NotificationConfig = NotificationConfig()
 
 
 def load_config(filename="config.yaml") -> Config:

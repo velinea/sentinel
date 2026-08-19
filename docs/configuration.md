@@ -152,12 +152,12 @@ cameras:
 | source | Snapshot source: `ha` (default) or `go2rtc` |
 | go2rtc_src | go2rtc stream name (required when `source: go2rtc`) |
 | go2rtc_save_src | go2rtc stream name for high-res saves (optional) |
-| notify | Send a Home Assistant notification on activity (default: `false`) |
-| notify_title | Custom notification title (defaults to camera name) |
+| notify | Fire a `sentinel_detection` event on activity (default: `false`) |
+| notify_title | Event title (defaults to camera name) |
 
-#### Home Assistant notifications
+#### Home Assistant events
 
-Sentinel can send a persistent notification to Home Assistant when activity is detected. Enable it per camera:
+When activity is detected, Sentinel fires a custom event on the Home Assistant event bus. Enable it per camera:
 
 ```yaml
 cameras:
@@ -170,7 +170,43 @@ cameras:
       - cat
 ```
 
-The notification title defaults to the camera name if `notify_title` is not set. The message body lists the detected object labels.
+The event type is `sentinel_detection` with the following payload:
+
+| Field | Description |
+|-------|-------------|
+| title | Camera display title (`notify_title` or camera name) |
+| camera | Camera name |
+| objects | List of detected object labels |
+| image_url | Link to the latest snapshot (only if `image_base_url` is set) |
+
+To include the snapshot image URL, configure the base URL of the Sentinel HTTP server:
+
+```yaml
+notification:
+  image_base_url: http://sentinel:8080
+```
+
+The event does not show anything in Home Assistant by itself — create an automation to act on it:
+
+```yaml
+alias: Sentinel Front Door Detection
+trigger:
+  platform: event
+  event_type: sentinel_detection
+  event_data:
+    camera: front_door
+condition: []
+action:
+  - service: notify.mobile_app_your_phone
+    data:
+      title: "{{ trigger.event.data.title }}"
+      message: "Detected: {{ trigger.event.data.objects | join(', ') }}"
+      data:
+        image: "{{ trigger.event.data.image_url }}"
+mode: single
+```
+
+The `image_url` is optional in the notification payload if `image_base_url` is not configured.
 
 #### Using go2rtc as snapshot source
 
@@ -207,7 +243,7 @@ cameras:
     entity: camera.terassi_sannce_1
     source: go2rtc
     go2rtc_src: cam0_sub
-    go2rtc_save_src: cam0
+    go2rtc_save_src: cam0_main
     objects:
       - person
       - cat

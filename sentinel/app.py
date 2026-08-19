@@ -190,21 +190,40 @@ def main():
                         )
 
                     if camera.notify:
-                        title = (
-                            camera.notify_title
-                            or camera.name
-                        )
-                        message = ", ".join(
-                            detection.label
-                            for detection in changed
-                        )
+                        event_data = {
+                            "title": (
+                                camera.notify_title
+                                or camera.name
+                            ),
+                            "camera": camera.name,
+                            "objects": [
+                                detection.label
+                                for detection in changed
+                            ],
+                        }
+
+                        if (
+                            config.notification
+                            .image_base_url
+                        ):
+                            base = (
+                                config.notification
+                                .image_base_url
+                                .rstrip("/")
+                            )
+                            event_data["image_url"] = (
+                                f"{base}/latest/"
+                                f"{camera.name}.jpg"
+                            )
+
                         try:
-                            ha_client.notify(
-                                title, message
+                            ha_client.fire_event(
+                                "sentinel_detection",
+                                event_data,
                             )
                         except Exception:
                             logger.warning(
-                                "%s: Notification failed",
+                                "%s: Event fire failed",
                                 camera.name,
                             )
 

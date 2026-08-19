@@ -36,14 +36,11 @@ class HomeAssistantClient:
         ]
         return camera_entities
 
-    def notify(self, title: str, message: str):
+    def fire_event(self, event_type: str, event_data: dict):
 
         response = self.client.post(
-            "/api/services/persistent_notification/create",
-            json={
-                "title": title,
-                "message": message,
-            },
+            f"/api/events/{event_type}",
+            json=event_data,
         )
 
         response.raise_for_status()

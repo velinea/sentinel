@@ -23,6 +23,11 @@ storage:
 logging:
   level: INFO
 
+# Optional: base URL of the Sentinel HTTP server, used to build
+# the image_url in sentinel_detection events
+# notification:
+#   image_base_url: http://sentinel:8080
+
 # Optional: go2rtc snapshot source
 # go2rtc:
 #   url: http://localhost:1984
@@ -77,7 +82,7 @@ cameras:
 #     entity: camera.terassi_sannce_1
 #     source: go2rtc
 #     go2rtc_src: cam0_sub
-#     go2rtc_save_src: cam0
+#     go2rtc_save_src: cam0_main
 #     notify: true
 #     notify_title: "Front Door"
 #     objects:
