@@ -83,6 +83,14 @@ def main():
     signal.signal(signal.SIGTERM, handle_shutdown)
     signal.signal(signal.SIGINT, handle_shutdown)
 
+    cleanup_interval = 1000
+    loop_count = 0
+
+    storage.cleanup(
+        config.storage.retention_days,
+        config.storage.max_snapshots_per_camera,
+    )
+
     logger.info("Sentinel starting")
     logger.info("HA: %s", config.homeassistant.url)
     logger.info("Cameras: %d", len(config.cameras))
@@ -150,6 +158,25 @@ def main():
                             ),
                         )
 
+                    if camera.notify:
+                        title = (
+                            camera.notify_title
+                            or camera.name
+                        )
+                        message = ", ".join(
+                            detection.label
+                            for detection in changed
+                        )
+                        try:
+                            ha_client.notify(
+                                title, message
+                            )
+                        except Exception:
+                            logger.warning(
+                                "%s: Notification failed",
+                                camera.name,
+                            )
+
                 elif interesting:
                     logger.info(
                         "Objects stationary - "
@@ -201,5 +228,12 @@ def main():
             )
 
         time.sleep(0.1)
+
+        loop_count += 1
+        if loop_count % cleanup_interval == 0:
+            storage.cleanup(
+                config.storage.retention_days,
+                config.storage.max_snapshots_per_camera,
+            )
 
     logger.info("Sentinel stopped")

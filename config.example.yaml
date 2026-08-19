@@ -17,6 +17,8 @@ activity:
 storage:
   path: "/PATH/TO/snapshots"
   save_detections: true
+  # retention_days: 30
+  # max_snapshots_per_camera: 500
 
 logging:
   level: INFO
@@ -65,6 +67,16 @@ cameras:
 #     entity: camera.terassi_sannce_1
 #     source: go2rtc
 #     go2rtc_src: cam0_sub
+#     objects:
+#       - person
+#       - cat
+
+# Example: notifications + retention
+# cameras:
+#   - name: front_door
+#     entity: camera.terassi_sannce_1
+#     notify: true
+#     notify_title: "Front Door"
 #     objects:
 #       - person
 #       - cat

@@ -19,6 +19,8 @@ class CameraConfig(BaseModel):
     objects: list[str]
     source: Literal["ha", "go2rtc"] = "ha"
     go2rtc_src: str | None = None
+    notify: bool = False
+    notify_title: str | None = None
 
 
 class InferenceConfig(BaseModel):
@@ -43,6 +45,8 @@ class LoggingConfig(BaseModel):
 class StorageConfig(BaseModel):
     path: str
     save_detections: bool
+    retention_days: int | None = None
+    max_snapshots_per_camera: int | None = None
 
 
 class Config(BaseModel):

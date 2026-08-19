@@ -1,5 +1,8 @@
-from datetime import datetime
+import logging
+from datetime import datetime, timedelta
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class SnapshotStorage:
@@ -29,3 +32,60 @@ class SnapshotStorage:
         latest.write_bytes(image)
 
         return filename
+
+    def cleanup(
+        self,
+        retention_days: int | None = None,
+        max_per_camera: int | None = None,
+    ):
+        for camera_dir in self.base_path.iterdir():
+            if not camera_dir.is_dir():
+                continue
+
+            if camera_dir.name.startswith("."):
+                continue
+
+            snapshots = sorted(
+                f
+                for f in camera_dir.iterdir()
+                if f.suffix == ".jpg"
+                and f.name != "latest.jpg"
+            )
+
+            if retention_days is not None:
+                cutoff = datetime.now() - timedelta(
+                    days=retention_days
+                )
+                for snapshot in snapshots:
+                    try:
+                        date_str = snapshot.stem
+                        file_date = datetime.strptime(
+                            date_str, "%Y%m%d_%H%M%S"
+                        )
+                        if file_date < cutoff:
+                            snapshot.unlink()
+                            logger.debug(
+                                "Deleted expired: %s",
+                                snapshot,
+                            )
+                    except ValueError:
+                        pass
+
+                snapshots = sorted(
+                    f
+                    for f in camera_dir.iterdir()
+                    if f.suffix == ".jpg"
+                    and f.name != "latest.jpg"
+                )
+
+            if max_per_camera is not None:
+                excess = (
+                    len(snapshots) - max_per_camera
+                )
+                if excess > 0:
+                    for snapshot in snapshots[:excess]:
+                        snapshot.unlink()
+                        logger.debug(
+                            "Deleted excess: %s",
+                            snapshot,
+                        )

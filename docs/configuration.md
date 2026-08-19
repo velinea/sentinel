@@ -48,12 +48,18 @@ inference:
 storage:
   path: /path/to/snapshots
   save_detections: true
+  retention_days: 30
+  max_snapshots_per_camera: 500
 ```
 
 | Setting | Description |
 |---------|-------------|
 | path | Directory where detection snapshots are saved |
 | save_detections | Save snapshot images when activity is detected |
+| retention_days | Delete snapshots older than N days (optional) |
+| max_snapshots_per_camera | Keep at most N snapshots per camera (optional) |
+
+Cleanup runs on startup and periodically during operation.
 
 ### Activity mode
 
@@ -145,6 +151,25 @@ cameras:
 | objects | Object labels that trigger a detection |
 | source | Snapshot source: `ha` (default) or `go2rtc` |
 | go2rtc_src | go2rtc stream name (required when `source: go2rtc`) |
+| notify | Send a Home Assistant notification on activity (default: `false`) |
+| notify_title | Custom notification title (defaults to camera name) |
+
+#### Home Assistant notifications
+
+Sentinel can send a persistent notification to Home Assistant when activity is detected. Enable it per camera:
+
+```yaml
+cameras:
+  - name: front_door
+    entity: camera.terassi_sannce_1
+    notify: true
+    notify_title: "Front Door"
+    objects:
+      - person
+      - cat
+```
+
+The notification title defaults to the camera name if `notify_title` is not set. The message body lists the detected object labels.
 
 #### Using go2rtc as snapshot source
 
@@ -188,6 +213,8 @@ activity:
 storage:
   path: /home/sentinel/sentinel/snapshots
   save_detections: true
+  retention_days: 30
+  max_snapshots_per_camera: 500
 
 logging:
   level: INFO
@@ -200,6 +227,8 @@ cameras:
     entity: camera.terassi_sannce_1
     source: go2rtc
     go2rtc_src: cam0_sub
+    notify: true
+    notify_title: "Front Door"
     objects:
       - person
       - cat
@@ -226,6 +255,7 @@ cameras:
 
   - name: garden
     entity: camera.reolink_fluent
+    notify: true
     objects:
       - person
       - dog

@@ -35,3 +35,15 @@ class HomeAssistantClient:
             if entity["entity_id"].startswith("camera.")
         ]
         return camera_entities
+
+    def notify(self, title: str, message: str):
+
+        response = self.client.post(
+            "/api/services/persistent_notification/create",
+            json={
+                "title": title,
+                "message": message,
+            },
+        )
+
+        response.raise_for_status()
