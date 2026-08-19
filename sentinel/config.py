@@ -1,3 +1,5 @@
+from typing import Literal
+
 import yaml
 from pydantic import BaseModel, Field
 
@@ -7,14 +9,19 @@ class HomeAssistantConfig(BaseModel):
     token: str
 
 
+class Go2rtcConfig(BaseModel):
+    url: str
+
+
 class CameraConfig(BaseModel):
     name: str
     entity: str
     objects: list[str]
+    source: Literal["ha", "go2rtc"] = "ha"
+    go2rtc_src: str | None = None
 
 
 class InferenceConfig(BaseModel):
-    backend: str
     url: str
     min_confidence: float = Field(ge=0.0, le=1.0)
 
@@ -29,6 +36,10 @@ class ActivityConfig(BaseModel):
     movement_threshold: float = Field(ge=0.0)
 
 
+class LoggingConfig(BaseModel):
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+
+
 class StorageConfig(BaseModel):
     path: str
     save_detections: bool
@@ -41,6 +52,9 @@ class Config(BaseModel):
     polling: PollingConfig
     activity: ActivityConfig
     storage: StorageConfig
+    go2rtc: Go2rtcConfig | None = None
+    logging: LoggingConfig = LoggingConfig()
+
 
 def load_config(filename="config.yaml") -> Config:
     with open(filename, "r") as f:

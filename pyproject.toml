@@ -6,11 +6,11 @@ readme = "README.md"
 requires-python = ">=3.13"
 
 dependencies = [
-    "aiohttp",
+    "fastapi",
     "httpx",
-    "pillow",
-    "imagehash",
+    "pydantic",
     "pyyaml",
+    "uvicorn",
 ]
 
 [project.scripts]

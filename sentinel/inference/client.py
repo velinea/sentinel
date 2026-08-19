@@ -5,15 +5,17 @@ from sentinel.detection import Detection
 
 class InferenceClient:
     def __init__(self, url: str):
-        self.url = url.rstrip("/")
+        self.client = httpx.Client(
+            base_url=url.rstrip("/"),
+            timeout=30.0,
+        )
 
     def detect(self, image: bytes) -> list[Detection]:
-        response = httpx.post(
-            f"{self.url}/detect",
+        response = self.client.post(
+            "/detect",
             files={
                 "file": ("snapshot.jpg", image, "image/jpeg"),
             },
-            timeout=30.0,
         )
 
         response.raise_for_status()

@@ -18,6 +18,9 @@ Sentinel was created as a modern replacement for DOODS, taking advantage of curr
 - Activity mode for ongoing events
 - Automatic storage of interesting snapshots
 - Latest detection exposed to Home Assistant
+- go2rtc direct snapshot source (optional)
+- Configurable logging levels
+- Graceful shutdown handling
 - Designed for low-power hardware
 
 ---
@@ -41,31 +44,31 @@ The result is a detector that is significantly simpler than traditional NVR-base
 ## Architecture
 
 ```text
-                Home Assistant
-                     │
-             Camera snapshots
-                     │
-                     ▼
-              +--------------+
-              |   Sentinel   |
-              |--------------|
-              | Snapshot poll|
-              | Detection    |
-              | Filtering    |
-              | Activity     |
-              | HTTP server  |
-              +------+-------+
-                     │
-              REST API
-                     │
-                     ▼
-        +-------------------------+
-        | Sentinel Inference      |
-        | OpenVINO + YOLO         |
-        +-------------------------+
-                     │
-                     ▼
-              Detection results
+    Home Assistant / go2rtc
+              │
+        Camera snapshots
+              │
+              ▼
+       +--------------+
+       |   Sentinel   |
+       |--------------|
+       | Snapshot poll|
+       | Detection    |
+       | Filtering    |
+       | Activity     |
+       | HTTP server  |
+       +------+-------+
+              │
+        REST API
+              │
+              ▼
+   +-------------------------+
+   | Sentinel Inference      |
+   | OpenVINO + YOLO         |
+   +-------------------------+
+              │
+              ▼
+       Detection results
 ```
 
 Sentinel is intentionally split into two services:
@@ -110,13 +113,15 @@ Current functionality includes:
 - HTTP snapshot endpoint
 - Snapshot storage
 - Graceful camera error handling
+- go2rtc snapshot source
+- Configurable logging
+- Graceful shutdown
 
 Planned improvements include:
 
 - Camera auto-discovery
-- Configuration validation
 - Automatic cleanup and retention
-- Home Assistant notification examples
+- Home Assistant notification integration
 - Docker packaging
 - Expanded documentation
 

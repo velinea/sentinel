@@ -3,10 +3,9 @@ homeassistant:
   token: YOUR_LONG_TOKEN
 
 inference:
-  backend: yolo
   url: http://<SENTINEL-INFERENCE_IP>:8000
   min_confidence: 0.7
-  
+
 polling:
   idle_interval: 5
   active_interval: 3
@@ -18,6 +17,13 @@ activity:
 storage:
   path: "/PATH/TO/snapshots"
   save_detections: true
+
+logging:
+  level: INFO
+
+# Optional: go2rtc snapshot source
+# go2rtc:
+#   url: http://localhost:1984
 
 cameras:
   - name: front_door
@@ -52,3 +58,13 @@ cameras:
       - person
       - dog
       - cat
+
+# Example: go2rtc camera source
+# cameras:
+#   - name: front_door
+#     entity: camera.terassi_sannce_1
+#     source: go2rtc
+#     go2rtc_src: cam0_sub
+#     objects:
+#       - person
+#       - cat
