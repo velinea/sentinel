@@ -3,8 +3,10 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
-SNAPSHOT_PATH = "/home/sentinel/sentinel/snapshots"
+from sentinel.config import load_config
 
+config = load_config()
+storage = Path(config.storage.path)
 
 app = FastAPI()
 
@@ -13,10 +15,9 @@ app = FastAPI()
 def health():
     return {"status": "ok"}
 
-
 @app.get("/latest/{camera}.jpg")
 def latest_image(camera: str):
-    image = Path(SNAPSHOT_PATH) / camera / "latest.jpg"
+    image = storage / camera / "latest.jpg"
 
     if not image.exists():
         raise HTTPException(

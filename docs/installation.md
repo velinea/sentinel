@@ -76,7 +76,7 @@ Before installing Sentinel, ensure that:
 # Clone the repository
 
 ```bash
-git clone https://github.com/<user>/sentinel.git
+git clone https://github.com/velinea/sentinel.git
 cd sentinel
 ```
 
