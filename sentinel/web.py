@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
 from sentinel.config import load_config
 
@@ -74,6 +74,11 @@ def _build_index() -> HTMLResponse:
 @app.get("/")
 def index():
     return _build_index()
+
+
+@app.get("/ping")
+def ping():
+    return PlainTextResponse("pong")
 
 
 @app.get("/health")
