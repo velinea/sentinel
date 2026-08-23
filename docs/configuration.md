@@ -133,7 +133,7 @@ When using go2rtc, set `source: go2rtc` and `go2rtc_src` on individual cameras (
 
 ### Video clips (optional)
 
-Sentinel can record video clips when activity is detected. It maintains a rolling buffer in RAM and saves an MP4 clip covering the seconds before and after detection.
+Sentinel can record video clips when activity is detected. It maintains a rolling buffer in RAM and saves an MP4 clip covering the seconds before detection.
 
 Requires `ffmpeg` to be installed on the system.
 
@@ -141,7 +141,6 @@ Requires `ffmpeg` to be installed on the system.
 clips:
   enabled: true
   buffer_seconds: 10
-  post_seconds: 5
   max_seconds: 60
   save_path: /home/sentinel/sentinel/clips
   crf: 23
@@ -152,7 +151,6 @@ clips:
 |---------|-------------|
 | enabled | Enable clip recording (default: `false`) |
 | buffer_seconds | Seconds of pre-event video kept in RAM |
-| post_seconds | Seconds to capture after activity ends |
 | max_seconds | Maximum clip length when activity continues |
 | save_path | Directory where clips are saved |
 | crf | H.264 encoding quality (lower = better, 0-51) |
@@ -205,7 +203,7 @@ cameras:
 | go2rtc_save_src | go2rtc stream name for high-res saves (optional) |
 | notify | Fire a `sentinel_detection` event on activity (default: `false`) |
 | notify_title | Event title (defaults to camera name) |
-| clip_enabled | Enable clip recording for this camera (overrides global) |
+| clip_enabled | Disable clip recording for this camera (default: `true` when global clips enabled) |
 | clip_max_seconds | Maximum clip length for this camera (overrides global) |
 
 #### Home Assistant events

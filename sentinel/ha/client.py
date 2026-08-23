@@ -23,19 +23,6 @@ class HomeAssistantClient:
 
         return response.content
 
-    def get_camera_entities(self):
-
-        response = self.client.get("/api/states")
-
-        response.raise_for_status()
-        entities = response.json()
-        camera_entities = [
-            entity["entity_id"]
-            for entity in entities
-            if entity["entity_id"].startswith("camera.")
-        ]
-        return camera_entities
-
     def fire_event(self, event_type: str, event_data: dict):
 
         response = self.client.post(

@@ -10,8 +10,8 @@ Sentinel is split into three services:
 
 | Service | Role | Entry point |
 |---------|------|-------------|
-| **Sentinel** | Snapshot polling, filtering, activity tracking, storage | `sentinel` CLI / `sentinel.__main__:main` |
-| **Sentinel HTTP** | FastAPI server exposing latest snapshots | `uvicorn sentinel.web:app` |
+| **Sentinel** | Snapshot polling, filtering, activity tracking, storage, clip recording | `sentinel` CLI / `sentinel.__main__:main` |
+| **Sentinel HTTP** | FastAPI server: dashboard, snapshots, clips | `uvicorn sentinel.web:app` |
 | **Sentinel Inference** | OpenVINO + YOLO inference (separate repo) | External |
 
 Splitting the HTTP server and inference into separate processes keeps each service lightweight and independently restartable.
@@ -34,7 +34,7 @@ Home Assistant / go2rtc
    | 3. Filter │  by per-camera object list
    | 4. Track  │  movement across frames
    | 5. Store  │  timestamped JPGs + latest.jpg
-   | 6. Notify │  HA persistent notifications
+   | 6. Notify │  HA sentinel_detection events
    +-----+-----+
          │
     REST API
@@ -68,7 +68,7 @@ When detections are found, Sentinel tracks objects across frames using spatial p
 
 1. Each detection's bounding box center is computed
 2. It is matched to a previously tracked object by label and nearest center position
-3. If no match exists (new object) or the object has moved beyond `movement_threshold` pixels, the detection is counted as a change
+3. If no match exists (new object) or the object has moved beyond `movement_threshold` pixels (or exactly at threshold), the detection is counted as a change
 4. If the object is stationary (within threshold), the detection is suppressed as a duplicate
 
 This prevents repeated storage/notifications for objects sitting still while still capturing movement.
@@ -113,16 +113,19 @@ The FastAPI server (`sentinel.web`) exposes:
 
 | Endpoint | Response |
 |----------|----------|
+| `GET /` | HTML dashboard — grid of all cameras with latest snapshots |
+| `GET /ping` | Plain text `pong` (used by Homarr health checks) |
 | `GET /health` | `{"status": "ok"}` |
 | `GET /latest/{camera}.jpg` | Latest detection snapshot (JPEG, no-cache) |
+| `GET /latest/{camera}.mp4` | Latest video clip (MP4, no-cache) |
 
-Intended to be consumed by Home Assistant's Generic Camera integration.
+The dashboard and image/clip endpoints are intended to be consumed by Home Assistant's Generic Camera integration and homepage dashboards.
 
 ---
 
 ## Error handling
 
-Each camera is processed independently. Errors on one camera do not affect others. After an error, that camera's polling interval increases to `error_interval` (default 15s) before retrying.
+Each camera is processed independently. Errors on one camera do not affect others. After an error, that camera's polling interval increases to `error_interval` before retrying.
 
 Three error categories:
 
@@ -149,6 +152,7 @@ sentinel/
   camera.py           Activity tracking state
   detection.py        Detection dataclass
   sources.py          Snapshot source protocol + implementations
+  clips.py            Video clip recording (ring buffer + ffmpeg)
   web.py              FastAPI HTTP server
   logging.py          Logging setup
   ha/

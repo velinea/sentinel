@@ -88,13 +88,13 @@ cd sentinel
 Create a virtual environment:
 
 ```bash
-python3 -m venv venv
+python3 -m venv .venv
 ```
 
 Activate it:
 
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 ```
 
 Install Sentinel in editable mode:
@@ -189,7 +189,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/home/sentinel/sentinel
-ExecStart=/home/sentinel/sentinel/venv/bin/sentinel
+ExecStart=/home/sentinel/sentinel/.venv/bin/sentinel
 Restart=on-failure
 RestartSec=5
 
@@ -249,7 +249,7 @@ These entities can be used directly in Lovelace dashboards and automations.
 
 When Sentinel starts correctly you should observe:
 
-- cameras discovered
+- cameras loaded from config
 - snapshots being polled
 - successful inference requests
 - detections logged

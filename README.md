@@ -74,9 +74,10 @@ The result is a detector that is significantly simpler than traditional NVR-base
        Detection results
 ```
 
-Sentinel is intentionally split into two services:
+Sentinel is intentionally split into three services:
 
-- **Sentinel** handles snapshot polling, filtering, activity tracking, storage and Home Assistant integration.
+- **Sentinel** handles snapshot polling, filtering, activity tracking, clip recording, storage and Home Assistant integration.
+- **Sentinel HTTP** serves the web dashboard, latest snapshots, and video clips.
 - **Sentinel Inference** performs AI inference using OpenVINO and exposes a simple REST API.
 
 This separation allows the inference backend to evolve independently from the application logic.
@@ -109,20 +110,22 @@ Sentinel is under active development.
 
 Current functionality includes:
 
-- Snapshot polling
+- Snapshot polling from HA or go2rtc
 - YOLO/OpenVINO inference
-- Per-camera filtering
-- Activity mode
-- HTTP snapshot endpoint
-- Snapshot storage
+- Per-camera object filtering
+- Activity mode with movement tracking
+- Web dashboard with camera grid
+- HTTP snapshot and clip endpoints
+- Snapshot storage with retention cleanup
+- Video clip recording with rolling buffer
+- Home Assistant sentinel_detection events
 - Graceful camera error handling
-- go2rtc snapshot source
 - Configurable logging
 - Graceful shutdown
 
 Planned improvements include:
 
-- Camera auto-discovery
+- Post-event clip padding (post_seconds)
 - Docker packaging
 - Expanded documentation
 

@@ -69,7 +69,6 @@ class CameraClipper:
         rtsp_url: str,
         save_path: Path,
         buffer_seconds: int,
-        post_seconds: int,
         max_seconds: int,
         fps: int,
         crf: int,
@@ -78,7 +77,6 @@ class CameraClipper:
         self.rtsp_url = rtsp_url
         self.save_path = save_path
         self.buffer = RingBuffer(buffer_seconds, fps)
-        self.post_seconds = post_seconds
         self.max_seconds = max_seconds
         self.fps = fps
         self.crf = crf
@@ -402,7 +400,6 @@ class ClipManager:
                 rtsp_url=rtsp_url,
                 save_path=save_path / camera.name,
                 buffer_seconds=config.clips.buffer_seconds,
-                post_seconds=config.clips.post_seconds,
                 max_seconds=max_seconds,
                 fps=config.clips.fps,
                 crf=config.clips.crf,
