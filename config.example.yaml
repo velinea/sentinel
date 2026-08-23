@@ -36,6 +36,7 @@ logging:
 # clips:
 #   enabled: true
 #   buffer_seconds: 10
+#   post_seconds: 5
 #   max_seconds: 60
 #   save_path: "/PATH/TO/clips"
 #   crf: 23

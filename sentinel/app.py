@@ -97,11 +97,6 @@ def main():
         for camera in config.cameras
     }
 
-    was_active = {
-        camera.name: False
-        for camera in config.cameras
-    }
-
     signal.signal(signal.SIGTERM, handle_shutdown)
     signal.signal(signal.SIGINT, handle_shutdown)
 
@@ -155,10 +150,12 @@ def main():
 
                 changed = state.update(interesting)
 
-                if changed:
+                if interesting:
                     clip_manager.notify_detection(
                         camera.name
                     )
+
+                if changed:
 
                     if config.storage.save_detections:
                         save_image = image
@@ -255,15 +252,7 @@ def main():
                     interval = (
                         config.polling.active_interval
                     )
-                    was_active[camera.name] = True
                 else:
-                    if was_active[camera.name]:
-                        clip_manager.request_stop(
-                            camera.name
-                        )
-                        was_active[
-                            camera.name
-                        ] = False
                     interval = (
                         config.polling.idle_interval
                     )

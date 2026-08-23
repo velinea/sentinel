@@ -32,13 +32,13 @@ class RingBuffer:
         self.timestamps.clear()
 
 
-def probe_resolution(rtsp_url: str):
+def probe_resolution(stream_url: str):
     cmd = [
         "ffprobe",
-        "-v", "quiet",
+        "-v", "error",
         "-print_format", "json",
         "-show_streams",
-        rtsp_url,
+        stream_url,
     ]
 
     try:
@@ -66,17 +66,19 @@ class CameraClipper:
     def __init__(
         self,
         name: str,
-        rtsp_url: str,
+        stream_url: str,
         save_path: Path,
         buffer_seconds: int,
+        post_seconds: int,
         max_seconds: int,
         fps: int,
         crf: int,
     ):
         self.name = name
-        self.rtsp_url = rtsp_url
+        self.stream_url = stream_url
         self.save_path = save_path
         self.buffer = RingBuffer(buffer_seconds, fps)
+        self.post_seconds = post_seconds
         self.max_seconds = max_seconds
         self.fps = fps
         self.crf = crf
@@ -85,23 +87,25 @@ class CameraClipper:
         self._reader_thread: threading.Thread | None = None
         self._writer_proc: subprocess.Popen | None = None
 
-        self._start_event = threading.Event()
-        self._stop_event = threading.Event()
         self._recording = False
         self._lock = threading.Lock()
+        self._start_event = threading.Event()
 
         self._frame_width = 0
         self._frame_height = 0
+        self._last_detection = 0.0
+        self._record_start = 0.0
 
     def start(self):
         self.save_path.mkdir(parents=True, exist_ok=True)
 
-        w, h = probe_resolution(self.rtsp_url)
+        w, h = probe_resolution(self.stream_url)
         if w and h:
             self._frame_width = w
             self._frame_height = h
             logger.info(
-                "%s: Detected %dx%d", self.name, w, h
+                "%s: Detected %dx%d via %s",
+                self.name, w, h, self.stream_url,
             )
         else:
             logger.warning(
@@ -114,8 +118,7 @@ class CameraClipper:
             "ffmpeg",
             "-hide_banner",
             "-loglevel", "warning",
-            "-rtsp_transport", "tcp",
-            "-i", self.rtsp_url,
+            "-i", self.stream_url,
             "-f", "rawvideo",
             "-pix_fmt", "bgr24",
             "-r", str(self.fps),
@@ -134,6 +137,12 @@ class CameraClipper:
             )
             return
 
+        threading.Thread(
+            target=self._drain_stderr,
+            name=f"clip-stderr-{self.name}",
+            daemon=True,
+        ).start()
+
         self._reader_thread = threading.Thread(
             target=self._reader_loop,
             name=f"clip-reader-{self.name}",
@@ -143,6 +152,18 @@ class CameraClipper:
         logger.info(
             "%s: Clip reader started", self.name
         )
+
+    def _drain_stderr(self):
+        proc = self._reader_proc
+        if proc is None or proc.stderr is None:
+            return
+
+        for line in proc.stderr:
+            text = line.decode("utf-8", errors="replace").rstrip()
+            if text:
+                logger.debug(
+                    "%s: ffmpeg: %s", self.name, text
+                )
 
     def _reader_loop(self):
         proc = self._reader_proc
@@ -178,11 +199,14 @@ class CameraClipper:
             if self._recording:
                 self._write_frame(raw)
 
-                if self._stop_event.is_set():
-                    self._finish_recording()
-                elif (
-                    now - self._record_start
-                    >= self.max_seconds
+                with self._lock:
+                    last = self._last_detection
+                    elapsed = now - self._record_start
+                    since_last = now - last
+
+                if (
+                    since_last >= self.post_seconds
+                    or elapsed >= self.max_seconds
                 ):
                     self._finish_recording()
 
@@ -233,13 +257,9 @@ class CameraClipper:
 
     def notify_detection(self):
         with self._lock:
+            self._last_detection = time.monotonic()
             if not self._recording:
                 self._start_event.set()
-
-    def request_stop(self):
-        with self._lock:
-            if self._recording:
-                self._stop_event.set()
 
     def _begin_recording(self, now: float):
         timestamp = datetime.now().strftime(
@@ -283,7 +303,6 @@ class CameraClipper:
         self._recording = True
         self._record_start = now
         self._clip_path = clip_path
-        self._stop_event.clear()
 
         frames, _timestamps = self.buffer.snapshot()
         for frame in frames:
@@ -306,7 +325,6 @@ class CameraClipper:
                 self._writer_proc.kill()
 
         self._writer_proc = None
-        self._stop_event.clear()
 
         clip_path = getattr(self, "_clip_path", None)
 
@@ -390,16 +408,17 @@ class ClipManager:
                 else config.clips.max_seconds
             )
 
-            rtsp_url = (
-                f"{go2rtc_url.replace('http', 'rtsp', 1)}"
-                f"/{camera.go2rtc_src}"
+            stream_url = (
+                f"{go2rtc_url}/api/stream.mp4"
+                f"?src={camera.go2rtc_src}"
             )
 
             self.clippers[camera.name] = CameraClipper(
                 name=camera.name,
-                rtsp_url=rtsp_url,
+                stream_url=stream_url,
                 save_path=save_path / camera.name,
                 buffer_seconds=config.clips.buffer_seconds,
+                post_seconds=config.clips.post_seconds,
                 max_seconds=max_seconds,
                 fps=config.clips.fps,
                 crf=config.clips.crf,
@@ -413,11 +432,6 @@ class ClipManager:
         clipper = self.clippers.get(camera_name)
         if clipper:
             clipper.notify_detection()
-
-    def request_stop(self, camera_name: str):
-        clipper = self.clippers.get(camera_name)
-        if clipper:
-            clipper.request_stop()
 
     def shutdown(self):
         for clipper in self.clippers.values():
