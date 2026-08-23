@@ -1,5 +1,9 @@
 # Sentinel
 
+<div align="center">
+  <img src=docs/sentinel.png alt="Sentinel logo" width="300"/>
+</div>   
+
 **Sentinel** is a lightweight AI snapshot detector for Home Assistant.
 
 Instead of processing continuous RTSP video streams, Sentinel periodically polls camera snapshots already provided by Home Assistant, performs AI object detection using a dedicated inference server, and stores only interesting detections. This approach keeps the architecture simple, resource-efficient and easy to integrate into existing Home Assistant installations.
