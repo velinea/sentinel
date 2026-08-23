@@ -61,7 +61,7 @@ python -m sentinel
 The HTTP server runs separately:
 
 ```bash
-uvicorn sentinel.web:app --host 0.0.0.0 --port 8080
+uvicorn sentinel.web:app --host 0.0.0.0 --port 8001
 ```
 
 ## Type checking

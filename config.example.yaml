@@ -26,7 +26,7 @@ logging:
 # Optional: base URL of the Sentinel HTTP server, used to build
 # the image_url in sentinel_detection events
 # notification:
-#   image_base_url: http://sentinel:8080
+#   image_base_url: http://sentinel:8001
 
 # Optional: go2rtc snapshot source
 # go2rtc:

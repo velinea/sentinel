@@ -170,7 +170,7 @@ python -m sentinel
 Start the HTTP server:
 
 ```bash
-uvicorn sentinel.web:app --host 0.0.0.0 --port 8080
+uvicorn sentinel.web:app --host 0.0.0.0 --port 8001
 ```
 
 ---
@@ -207,7 +207,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/home/sentinel/sentinel
-ExecStart=/home/sentinel/sentinel/venv/bin/uvicorn sentinel.web:app --host 0.0.0.0 --port 8080
+ExecStart=/home/sentinel/sentinel/.venv/bin/uvicorn sentinel.web:app --host 0.0.0.0 --port 8001
 Restart=on-failure
 RestartSec=5
 
@@ -236,7 +236,7 @@ sudo systemctl start sentinel-http
 Add Generic Camera entities pointing to Sentinel's HTTP server:
 
 ```
-http://<sentinel-host>:8080/latest/front_door.jpg
+http://<sentinel-host>:8001/latest/front_door.jpg
 ```
 
 Each configured camera exposes the latest interesting detection.

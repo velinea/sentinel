@@ -67,7 +67,7 @@ def _build_index() -> HTMLResponse:
         cards.append(card)
 
     return HTMLResponse(
-        INDEX_HTML.format(cards="\n".join(cards))
+        INDEX_HTML.replace("{cards}", "\n".join(cards))
     )
 
 

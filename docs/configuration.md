@@ -236,7 +236,7 @@ To include the snapshot image URL, configure the base URL of the Sentinel HTTP s
 
 ```yaml
 notification:
-  image_base_url: http://sentinel:8080
+  image_base_url: http://sentinel:8001
 ```
 
 The event does not show anything in Home Assistant by itself — create an automation to act on it:
