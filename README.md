@@ -20,6 +20,7 @@ Sentinel was created as a modern replacement for DOODS, taking advantage of curr
 - Latest detection exposed to Home Assistant
 - go2rtc direct snapshot source (optional)
 - Home Assistant detection events (for automations)
+- Video clip recording with rolling buffer (optional)
 - Automatic snapshot retention and cleanup
 - Configurable logging levels
 - Graceful shutdown handling

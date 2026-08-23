@@ -70,6 +70,7 @@ Before installing Sentinel, ensure that:
 - The Home Assistant REST API is accessible.
 - Python 3.13 is installed.
 - Git is available.
+- ffmpeg is installed (required for video clip recording).
 
 ---
 

@@ -22,6 +22,8 @@ class CameraConfig(BaseModel):
     go2rtc_save_src: str | None = None
     notify: bool = False
     notify_title: str | None = None
+    clip_enabled: bool | None = None
+    clip_max_seconds: int | None = None
 
 
 class InferenceConfig(BaseModel):
@@ -54,6 +56,17 @@ class NotificationConfig(BaseModel):
     image_base_url: str | None = None
 
 
+class ClipConfig(BaseModel):
+    enabled: bool = False
+    buffer_seconds: int = Field(default=10, gt=0)
+    post_seconds: int = Field(default=5, gt=0)
+    max_seconds: int = Field(default=60, gt=0)
+    save_path: str = "clips"
+    codec: str = "h264"
+    crf: int = Field(default=23, ge=0, le=51)
+    fps: int = Field(default=10, gt=0)
+
+
 class Config(BaseModel):
     homeassistant: HomeAssistantConfig
     cameras: list[CameraConfig]
@@ -64,6 +77,7 @@ class Config(BaseModel):
     go2rtc: Go2rtcConfig | None = None
     logging: LoggingConfig = LoggingConfig()
     notification: NotificationConfig = NotificationConfig()
+    clips: ClipConfig = ClipConfig()
 
 
 def load_config(filename="config.yaml") -> Config:

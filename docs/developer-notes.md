@@ -6,6 +6,7 @@
 - A Home Assistant instance with camera entities
 - The Sentinel Inference server running (separate service)
 - Git
+- ffmpeg (for video clip recording)
 
 ## Setting up a development environment
 

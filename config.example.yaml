@@ -32,6 +32,16 @@ logging:
 # go2rtc:
 #   url: http://localhost:1984
 
+# Optional: video clip recording (requires ffmpeg)
+# clips:
+#   enabled: true
+#   buffer_seconds: 10
+#   post_seconds: 5
+#   max_seconds: 60
+#   save_path: "/PATH/TO/clips"
+#   crf: 23
+#   fps: 10
+
 cameras:
   - name: front_door
     entity: camera.terassi_sannce_1

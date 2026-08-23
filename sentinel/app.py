@@ -5,6 +5,7 @@ import time
 import httpx
 
 from sentinel.camera import CameraState
+from sentinel.clips import ClipManager
 from sentinel.config import load_config
 from sentinel.ha.client import HomeAssistantClient
 from sentinel.inference.client import InferenceClient
@@ -77,6 +78,9 @@ def main():
 
     storage = SnapshotStorage(config.storage.path)
 
+    clip_manager = ClipManager(config)
+    clip_manager.start()
+
     inference = InferenceClient(
         config.inference.url,
     )
@@ -90,6 +94,11 @@ def main():
 
     next_poll = {
         camera.name: 0.0
+        for camera in config.cameras
+    }
+
+    was_active = {
+        camera.name: False
         for camera in config.cameras
     }
 
@@ -147,6 +156,10 @@ def main():
                 changed = state.update(interesting)
 
                 if changed:
+                    clip_manager.notify_detection(
+                        camera.name
+                    )
+
                     if config.storage.save_detections:
                         save_image = image
 
@@ -242,7 +255,15 @@ def main():
                     interval = (
                         config.polling.active_interval
                     )
+                    was_active[camera.name] = True
                 else:
+                    if was_active[camera.name]:
+                        clip_manager.request_stop(
+                            camera.name
+                        )
+                        was_active[
+                            camera.name
+                        ] = False
                     interval = (
                         config.polling.idle_interval
                     )
@@ -286,4 +307,5 @@ def main():
                 config.storage.max_snapshots_per_camera,
             )
 
+    clip_manager.shutdown()
     logger.info("Sentinel stopped")
