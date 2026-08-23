@@ -59,7 +59,6 @@ class NotificationConfig(BaseModel):
 class ClipConfig(BaseModel):
     enabled: bool = False
     buffer_seconds: int = Field(default=10, gt=0)
-    post_seconds: int = Field(default=5, gt=0)
     max_seconds: int = Field(default=60, gt=0)
     save_path: str = "clips"
     crf: int = Field(default=23, ge=0, le=51)

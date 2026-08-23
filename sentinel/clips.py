@@ -69,7 +69,6 @@ class CameraClipper:
         stream_url: str,
         save_path: Path,
         buffer_seconds: int,
-        post_seconds: int,
         max_seconds: int,
         fps: int,
         crf: int,
@@ -78,7 +77,6 @@ class CameraClipper:
         self.stream_url = stream_url
         self.save_path = save_path
         self.buffer = RingBuffer(buffer_seconds, fps)
-        self.post_seconds = post_seconds
         self.max_seconds = max_seconds
         self.fps = fps
         self.crf = crf
@@ -93,7 +91,6 @@ class CameraClipper:
 
         self._frame_width = 0
         self._frame_height = 0
-        self._last_detection = 0.0
         self._record_start = 0.0
 
     def start(self):
@@ -199,15 +196,9 @@ class CameraClipper:
             if self._recording:
                 self._write_frame(raw)
 
-                with self._lock:
-                    last = self._last_detection
-                    elapsed = now - self._record_start
-                    since_last = now - last
+                elapsed = now - self._record_start
 
-                if (
-                    since_last >= self.post_seconds
-                    or elapsed >= self.max_seconds
-                ):
+                if elapsed >= self.max_seconds:
                     self._finish_recording()
 
         if self._recording:
@@ -257,7 +248,6 @@ class CameraClipper:
 
     def notify_detection(self):
         with self._lock:
-            self._last_detection = time.monotonic()
             if not self._recording:
                 self._start_event.set()
 
@@ -418,7 +408,6 @@ class ClipManager:
                 stream_url=stream_url,
                 save_path=save_path / camera.name,
                 buffer_seconds=config.clips.buffer_seconds,
-                post_seconds=config.clips.post_seconds,
                 max_seconds=max_seconds,
                 fps=config.clips.fps,
                 crf=config.clips.crf,

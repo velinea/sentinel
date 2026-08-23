@@ -129,7 +129,6 @@ Current functionality includes:
 
 Planned improvements include:
 
-- Post-event clip padding (post_seconds)
 - Docker packaging
 - Expanded documentation
 
