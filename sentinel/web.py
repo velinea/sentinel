@@ -97,6 +97,32 @@ def _build_index() -> HTMLResponse:
         name = camera.name
         objects = ", ".join(camera.objects)
 
+        live_links = ""
+        if camera.go2rtc_src:
+            go2rtc_url = (
+                camera.go2rtc_url
+                or (config.go2rtc.url if config.go2rtc else None)
+            )
+            if go2rtc_url:
+                if camera.go2rtc_url:
+                    link_base = camera.go2rtc_url
+                else:
+                    link_base = (
+                        (config.go2rtc.stream_url if config.go2rtc else None)
+                        or go2rtc_url
+                    )
+                sub_url = (
+                    f"{link_base}/stream.html"
+                    f"?src={camera.go2rtc_src}"
+                )
+                live_links = f' <a href="{sub_url}" target="_blank">live (sub)</a>'
+                if camera.go2rtc_save_src:
+                    main_url = (
+                        f"{link_base}/stream.html"
+                        f"?src={camera.go2rtc_save_src}"
+                    )
+                    live_links += f' <a href="{main_url}" target="_blank">live (main)</a>'
+
         card = f"""\
 <div class="card">
   <div class="card-header">{name}</div>
@@ -106,7 +132,7 @@ def _build_index() -> HTMLResponse:
   <div class="card-footer">
     <span class="muted">{objects}</span>
     &mdash;
-    <a href="/latest/{name}.mp4">latest clip</a>
+    <a href="/latest/{name}.mp4">latest clip</a>{live_links}
   </div>
 </div>"""
         cards.append(card)

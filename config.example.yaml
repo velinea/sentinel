@@ -31,6 +31,7 @@ logging:
 # Optional: go2rtc snapshot source
 # go2rtc:
 #   url: http://localhost:1984
+#   stream_url: https://go2rtc.yourdomain.com
 
 # Optional: web dashboard auth (Basic HTTP)
 # Recommended when using Tailscale Funnel or any public exposure

@@ -11,6 +11,7 @@ class HomeAssistantConfig(BaseModel):
 
 class Go2rtcConfig(BaseModel):
     url: str
+    stream_url: str | None = None
 
 
 class CameraConfig(BaseModel):
