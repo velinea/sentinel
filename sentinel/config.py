@@ -65,6 +65,11 @@ class ClipConfig(BaseModel):
     fps: int = Field(default=10, gt=0)
 
 
+class WebConfig(BaseModel):
+    auth_user: str | None = None
+    auth_password: str | None = None
+
+
 class Config(BaseModel):
     homeassistant: HomeAssistantConfig
     cameras: list[CameraConfig]
@@ -76,6 +81,7 @@ class Config(BaseModel):
     logging: LoggingConfig = LoggingConfig()
     notification: NotificationConfig = NotificationConfig()
     clips: ClipConfig = ClipConfig()
+    web: WebConfig = WebConfig()
 
 
 def load_config(filename="config.yaml") -> Config:

@@ -32,6 +32,12 @@ logging:
 # go2rtc:
 #   url: http://localhost:1984
 
+# Optional: web dashboard auth (Basic HTTP)
+# Recommended when using Tailscale Funnel or any public exposure
+# web:
+#   auth_user: sentinel
+#   auth_password: CHANGE_ME
+
 # Optional: video clip recording (requires ffmpeg)
 # clips:
 #   enabled: true

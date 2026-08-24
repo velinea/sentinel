@@ -1,7 +1,14 @@
+import base64
+import hmac
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    PlainTextResponse,
+    Response,
+)
 
 from sentinel.config import load_config
 
@@ -10,6 +17,44 @@ storage = Path(config.storage.path)
 clips_path = Path(config.clips.save_path)
 
 app = FastAPI()
+
+_AUTH_USER = config.web.auth_user
+_AUTH_PASS = config.web.auth_password
+_AUTH_ENABLED = bool(_AUTH_USER and _AUTH_PASS)
+
+
+def _check_auth(request: Request) -> None:
+    if not _AUTH_ENABLED:
+        return
+
+    auth = request.headers.get("Authorization", "")
+
+    if not auth.startswith("Basic "):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": 'Basic realm="Sentinel"'},
+        )
+
+    try:
+        decoded = base64.b64decode(auth[6:]).decode("utf-8")
+        user, password = decoded.split(":", 1)
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": 'Basic realm="Sentinel"'},
+        )
+
+    user_ok = hmac.compare_digest(user, _AUTH_USER or "")
+    pass_ok = hmac.compare_digest(password, _AUTH_PASS or "")
+
+    if not (user_ok and pass_ok):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": 'Basic realm="Sentinel"'},
+        )
 
 
 INDEX_HTML = """\
@@ -72,7 +117,7 @@ def _build_index() -> HTMLResponse:
 
 
 @app.get("/")
-def index():
+def index(_auth: None = Depends(_check_auth)):
     return _build_index()
 
 
@@ -87,7 +132,10 @@ def health():
 
 
 @app.get("/latest/{camera}.jpg")
-def latest_image(camera: str):
+def latest_image(
+    camera: str,
+    _auth: None = Depends(_check_auth),
+):
     image = storage / camera / "latest.jpg"
 
     if not image.exists():
@@ -106,7 +154,10 @@ def latest_image(camera: str):
 
 
 @app.get("/latest/{camera}.mp4")
-def latest_clip(camera: str):
+def latest_clip(
+    camera: str,
+    _auth: None = Depends(_check_auth),
+):
     camera_dir = clips_path / camera
 
     if not camera_dir.exists():
