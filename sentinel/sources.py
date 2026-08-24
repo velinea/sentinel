@@ -20,13 +20,18 @@ class HASource:
 
 class Go2rtcSource:
     def __init__(self, url: str, src: str):
-        self.client = httpx.Client(base_url=url, timeout=10.0)
+        self.base_url = url
         self.src = src
 
     def get_snapshot(self) -> bytes:
-        response = self.client.get(
-            "/api/frame.jpeg",
-            params={"src": self.src},
-        )
-        response.raise_for_status()
-        return response.content
+        with httpx.Client(
+            base_url=self.base_url,
+            timeout=10.0,
+            headers={"Connection": "close"},
+        ) as client:
+            response = client.get(
+                "/api/frame.jpeg",
+                params={"src": self.src},
+            )
+            response.raise_for_status()
+            return response.content

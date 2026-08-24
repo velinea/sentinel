@@ -104,13 +104,11 @@ def _build_index() -> HTMLResponse:
                 or (config.go2rtc.url if config.go2rtc else None)
             )
             if go2rtc_url:
-                if camera.go2rtc_url:
-                    link_base = camera.go2rtc_url
-                else:
-                    link_base = (
-                        (config.go2rtc.stream_url if config.go2rtc else None)
-                        or go2rtc_url
-                    )
+                link_base = (
+                    camera.go2rtc_stream_url
+                    or (config.go2rtc.stream_url if config.go2rtc else None)
+                    or go2rtc_url
+                )
                 sub_url = (
                     f"{link_base}/stream.html"
                     f"?src={camera.go2rtc_src}"
