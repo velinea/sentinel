@@ -384,7 +384,11 @@ class ClipManager:
             if not clip_enabled:
                 continue
 
-            if not go2rtc_url:
+            cam_url = (
+                camera.go2rtc_url or go2rtc_url
+            )
+
+            if not cam_url:
                 logger.warning(
                     "%s: Clip enabled but no go2rtc "
                     "config",
@@ -399,7 +403,7 @@ class ClipManager:
             )
 
             stream_url = (
-                f"{go2rtc_url}/api/stream.mp4"
+                f"{cam_url}/api/stream.mp4"
                 f"?src={camera.go2rtc_src}"
             )
 

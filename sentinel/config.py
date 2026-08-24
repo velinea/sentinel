@@ -18,6 +18,7 @@ class CameraConfig(BaseModel):
     entity: str
     objects: list[str]
     source: Literal["ha", "go2rtc"] = "ha"
+    go2rtc_url: str | None = None
     go2rtc_src: str | None = None
     go2rtc_save_src: str | None = None
     notify: bool = False

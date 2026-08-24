@@ -35,10 +35,14 @@ def build_sources(config):
 
     for camera in config.cameras:
         if camera.source == "go2rtc":
-            if config.go2rtc is None:
+            go2rtc_url = (
+                camera.go2rtc_url
+                or (config.go2rtc.url if config.go2rtc else None)
+            )
+            if go2rtc_url is None:
                 raise ValueError(
                     f"Camera '{camera.name}' requires go2rtc "
-                    "but no go2rtc config found"
+                    "but no go2rtc url found"
                 )
             if camera.go2rtc_src is None:
                 raise ValueError(
@@ -46,7 +50,7 @@ def build_sources(config):
                     "source: go2rtc but no go2rtc_src set"
                 )
             sources[camera.name] = Go2rtcSource(
-                config.go2rtc.url,
+                go2rtc_url,
                 camera.go2rtc_src,
             )
         else:
@@ -55,14 +59,18 @@ def build_sources(config):
             )
 
         if camera.go2rtc_save_src is not None:
-            if config.go2rtc is None:
+            go2rtc_url = (
+                camera.go2rtc_url
+                or (config.go2rtc.url if config.go2rtc else None)
+            )
+            if go2rtc_url is None:
                 raise ValueError(
                     f"Camera '{camera.name}' requires go2rtc "
                     "for go2rtc_save_src but no go2rtc "
-                    "config found"
+                    "url found"
                 )
             save_sources[camera.name] = Go2rtcSource(
-                config.go2rtc.url,
+                go2rtc_url,
                 camera.go2rtc_save_src,
             )
 
