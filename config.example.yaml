@@ -104,3 +104,15 @@ cameras:
 #     objects:
 #       - person
 #       - cat
+
+# Example: per-camera go2rtc override + public live link
+# cameras:
+#   - name: reolink
+#     entity: camera.reolink_fluent
+#     source: go2rtc
+#     go2rtc_url: http://127.0.0.1:1985       # internal API URL
+#     go2rtc_stream_url: https://reolink.example.com  # public live link URL
+#     go2rtc_src: reolink_sub
+#     go2rtc_save_src: reolink_main
+#     objects:
+#       - person

@@ -1,6 +1,8 @@
+import json
 import logging
 import signal
 import time
+from pathlib import Path
 
 import httpx
 
@@ -22,6 +24,23 @@ def handle_shutdown(signum, frame):
     global shutdown_requested
     logger.info("Shutdown requested (signal %s)", signum)
     shutdown_requested = True
+
+
+def write_status(status_path: Path, health: dict):
+    data = {
+        "cameras": {},
+        "updated": time.time(),
+    }
+    for name, h in health.items():
+        data["cameras"][name] = {
+            "last_ok": h["last_ok"],
+            "last_error": h["last_error"],
+            "error": h["error"],
+        }
+    try:
+        status_path.write_text(json.dumps(data))
+    except OSError:
+        pass
 
 
 def build_sources(config):
@@ -99,6 +118,16 @@ def main():
         )
         for camera in config.cameras
     }
+
+    health: dict[str, dict] = {
+        camera.name: {
+            "last_ok": 0.0,
+            "last_error": 0.0,
+            "error": "",
+        }
+        for camera in config.cameras
+    }
+    status_path = Path(config.storage.path) / "status.json"
 
     next_poll = {
         camera.name: 0.0
@@ -265,11 +294,18 @@ def main():
                         config.polling.idle_interval
                     )
 
+                health[camera.name]["last_ok"] = time.time()
+                health[camera.name]["error"] = ""
+
             except httpx.HTTPStatusError as error:
                 logger.error(
                     "%s: HTTP error %s",
                     camera.name,
                     error.response.status_code,
+                )
+                health[camera.name]["last_error"] = time.time()
+                health[camera.name]["error"] = (
+                    f"HTTP {error.response.status_code}"
                 )
 
                 interval = config.polling.error_interval
@@ -280,6 +316,8 @@ def main():
                     camera.name,
                     error,
                 )
+                health[camera.name]["last_error"] = time.time()
+                health[camera.name]["error"] = str(error)
 
                 interval = config.polling.error_interval
 
@@ -288,6 +326,8 @@ def main():
                     "%s: Unexpected error",
                     camera.name,
                 )
+                health[camera.name]["last_error"] = time.time()
+                health[camera.name]["error"] = "Unexpected error"
 
                 interval = config.polling.error_interval
 
@@ -303,6 +343,9 @@ def main():
                 config.storage.retention_days,
                 config.storage.max_snapshots_per_camera,
             )
+
+        if loop_count % 30 == 0:
+            write_status(status_path, health)
 
     clip_manager.shutdown()
     logger.info("Sentinel stopped")

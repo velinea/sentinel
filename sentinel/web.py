@@ -1,5 +1,7 @@
 import base64
 import hmac
+import json
+import time
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -15,6 +17,7 @@ from sentinel.config import load_config
 config = load_config()
 storage = Path(config.storage.path)
 clips_path = Path(config.clips.save_path)
+status_path = storage / "status.json"
 
 app = FastAPI()
 
@@ -78,6 +81,11 @@ INDEX_HTML = """\
   .card-footer a { font-size: 0.8rem; color: #5b9; text-decoration: none; }
   .card-footer a:hover { text-decoration: underline; }
   .muted { color: #666; font-size: 0.8rem; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.4rem; vertical-align: middle; }
+  .dot-green { background: #4a4; }
+  .dot-red { background: #e44; }
+  .dot-gray { background: #555; }
+  .error-text { color: #e44; font-size: 0.75rem; display: block; margin-top: 0.25rem; }
 </style>
 </head>
 <body>
@@ -91,11 +99,36 @@ INDEX_HTML = """\
 
 
 def _build_index() -> HTMLResponse:
-    cards = []
+    status: dict = {}
+    if status_path.exists():
+        try:
+            status = json.loads(status_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    cam_status_map = status.get("cameras", {})
+    cards: list[str] = []
 
     for camera in config.cameras:
         name = camera.name
         objects = ", ".join(camera.objects)
+
+        cam_status = cam_status_map.get(name, {})
+        last_ok = cam_status.get("last_ok", 0.0)
+        last_error = cam_status.get("last_error", 0.0)
+        error_msg = cam_status.get("error", "")
+
+        if error_msg and last_error > last_ok:
+            dot = '<span class="dot dot-red"></span>'
+            error_html = (
+                f'<span class="error-text">{error_msg}</span>'
+            )
+        elif last_ok > 0:
+            dot = '<span class="dot dot-green"></span>'
+            error_html = ""
+        else:
+            dot = '<span class="dot dot-gray"></span>'
+            error_html = ""
 
         live_links = ""
         if camera.go2rtc_src:
@@ -123,12 +156,13 @@ def _build_index() -> HTMLResponse:
 
         card = f"""\
 <div class="card">
-  <div class="card-header">{name}</div>
+  <div class="card-header">{dot} {name}</div>
   <div class="card-body">
     <img src="/latest/{name}.jpg" alt="{name}" loading="lazy">
   </div>
   <div class="card-footer">
     <span class="muted">{objects}</span>
+    {error_html}
     &mdash;
     <a href="/latest/{name}.mp4">latest clip</a>{live_links}
   </div>
