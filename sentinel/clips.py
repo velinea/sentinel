@@ -62,6 +62,9 @@ def probe_resolution(stream_url: str):
     return None, None
 
 
+RESTART_DELAY = 10
+
+
 class CameraClipper:
     def __init__(
         self,
@@ -82,16 +85,18 @@ class CameraClipper:
         self.crf = crf
 
         self._reader_proc: subprocess.Popen | None = None
-        self._reader_thread: threading.Thread | None = None
         self._writer_proc: subprocess.Popen | None = None
 
         self._recording = False
         self._lock = threading.Lock()
         self._start_event = threading.Event()
+        self._shutdown = threading.Event()
 
         self._frame_width = 0
         self._frame_height = 0
         self._record_start = 0.0
+        self._stretch = False
+        self._output_width = 0
 
     def start(self):
         self.save_path.mkdir(parents=True, exist_ok=True)
@@ -100,6 +105,7 @@ class CameraClipper:
         if w and h:
             self._frame_width = w
             self._frame_height = h
+            self._configure_stretch()
             logger.info(
                 "%s: Detected %dx%d via %s",
                 self.name, w, h, self.stream_url,
@@ -111,6 +117,13 @@ class CameraClipper:
                 self.name,
             )
 
+        threading.Thread(
+            target=self._reader_thread,
+            name=f"clip-reader-{self.name}",
+            daemon=True,
+        ).start()
+
+    def _launch_reader(self) -> bool:
         cmd = [
             "ffmpeg",
             "-hide_banner",
@@ -132,7 +145,7 @@ class CameraClipper:
             logger.error(
                 "%s: ffmpeg not found", self.name
             )
-            return
+            return False
 
         threading.Thread(
             target=self._drain_stderr,
@@ -140,15 +153,25 @@ class CameraClipper:
             daemon=True,
         ).start()
 
-        self._reader_thread = threading.Thread(
-            target=self._reader_loop,
-            name=f"clip-reader-{self.name}",
-            daemon=True,
-        )
-        self._reader_thread.start()
-        logger.info(
-            "%s: Clip reader started", self.name
-        )
+        return True
+
+    def _configure_stretch(self):
+        if self._frame_width == 0 or self._frame_height == 0:
+            return
+
+        ratio = self._frame_width / self._frame_height
+        if abs(ratio - 4 / 3) < 0.15:
+            self._stretch = True
+            self._output_width = (
+                self._frame_height * 16 // 9
+            )
+            logger.info(
+                "%s: 4:3 stream detected, "
+                "stretching to %dx%d",
+                self.name,
+                self._output_width,
+                self._frame_height,
+            )
 
     def _drain_stderr(self):
         proc = self._reader_proc
@@ -162,7 +185,34 @@ class CameraClipper:
                     "%s: ffmpeg: %s", self.name, text
                 )
 
-    def _reader_loop(self):
+    def _reader_thread(self):
+        while not self._shutdown.is_set():
+            if not self._launch_reader():
+                self._shutdown.wait(RESTART_DELAY)
+                continue
+
+            logger.info(
+                "%s: Clip reader started", self.name
+            )
+            self._run_reader_loop()
+
+            if self._shutdown.is_set():
+                break
+
+            self._cleanup_reader()
+
+            logger.warning(
+                "%s: Clip reader died, "
+                "restarting in %ds",
+                self.name, RESTART_DELAY,
+            )
+            self._shutdown.wait(RESTART_DELAY)
+
+        logger.info(
+            "%s: Clip reader stopped", self.name
+        )
+
+    def _run_reader_loop(self):
         proc = self._reader_proc
         if proc is None or proc.stdout is None:
             return
@@ -204,9 +254,17 @@ class CameraClipper:
         if self._recording:
             self._finish_recording()
 
-        logger.info(
-            "%s: Clip reader stopped", self.name
-        )
+    def _cleanup_reader(self):
+        if self._reader_proc:
+            self._reader_proc.terminate()
+            try:
+                self._reader_proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._reader_proc.kill()
+            self._reader_proc = None
+
+        if self._recording:
+            self._finish_recording()
 
     def _wait_for_resolution(self, proc):
         if self._frame_width > 0:
@@ -220,6 +278,7 @@ class CameraClipper:
         if w and h:
             self._frame_width = w
             self._frame_height = h
+            self._configure_stretch()
 
             if self._frame_width > 0:
                 frame_size = (
@@ -271,12 +330,22 @@ class CameraClipper:
             f"{self._frame_width}x{self._frame_height}",
             "-r", str(self.fps),
             "-i", "pipe:0",
+        ]
+
+        if self._stretch:
+            cmd.extend([
+                "-vf",
+                f"scale={self._output_width}:"
+                f"{self._frame_height}",
+            ])
+
+        cmd.extend([
             "-c:v", "libx264",
             "-crf", str(self.crf),
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
             str(clip_path),
-        ]
+        ])
 
         try:
             self._writer_proc = subprocess.Popen(
@@ -345,15 +414,8 @@ class CameraClipper:
         return self._recording
 
     def shutdown(self):
-        if self._reader_proc:
-            self._reader_proc.terminate()
-            try:
-                self._reader_proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self._reader_proc.kill()
-
-        if self._writer_proc:
-            self._finish_recording()
+        self._shutdown.set()
+        self._cleanup_reader()
 
 
 class ClipManager:
