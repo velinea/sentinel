@@ -22,16 +22,18 @@ class Go2rtcSource:
     def __init__(self, url: str, src: str):
         self.base_url = url
         self.src = src
+        self._client = httpx.Client(
+            base_url=url,
+            timeout=10.0,
+        )
 
     def get_snapshot(self) -> bytes:
-        with httpx.Client(
-            base_url=self.base_url,
-            timeout=10.0,
-            headers={"Connection": "close"},
-        ) as client:
-            response = client.get(
-                "/api/frame.jpeg",
-                params={"src": self.src},
-            )
-            response.raise_for_status()
-            return response.content
+        response = self._client.get(
+            "/api/frame.jpeg",
+            params={"src": self.src},
+        )
+        response.raise_for_status()
+        return response.content
+
+    def close(self):
+        self._client.close()

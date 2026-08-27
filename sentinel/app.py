@@ -43,6 +43,63 @@ def write_status(status_path: Path, health: dict):
         pass
 
 
+def check_consumers(config, sources):
+    """Watchdog: warn if a go2rtc stream accumulates too many
+    stale keyframe (snapshot) consumers. Returns True if any
+    stream is unhealthy."""
+    unhealthy = False
+
+    urls: set[str] = set()
+    for camera in config.cameras:
+        if camera.source != "go2rtc":
+            continue
+        url = (
+            camera.go2rtc_url
+            or (config.go2rtc.url if config.go2rtc else None)
+        )
+        if url:
+            urls.add(url)
+
+    for url in urls:
+        try:
+            with httpx.Client(
+                base_url=url,
+                timeout=10.0,
+            ) as client:
+                response = client.get("/api/streams")
+                response.raise_for_status()
+                streams = response.json()
+        except Exception as exc:
+            logger.warning(
+                "consumer-check: failed to query %s: %s",
+                url, exc,
+            )
+            continue
+
+        for sname, info in streams.items():
+            if not isinstance(info, dict):
+                continue
+            consumers = info.get("consumers", [])
+            stale = [
+                c for c in consumers
+                if (
+                    isinstance(c, dict)
+                    and c.get("format_name") == "keyframe"
+                    and "httpx" in c.get("user_agent", "")
+                )
+            ]
+            if len(stale) > 20:
+                logger.warning(
+                    "consumer-check: %s@%s has %d stale "
+                    "snapshot consumers - restart go2rtc "
+                    "to clear",
+                    sname, url, len(stale),
+                )
+                unhealthy = True
+
+    return unhealthy
+
+
 def build_sources(config):
     ha_client = HomeAssistantClient(
         config.homeassistant.url,
@@ -138,6 +195,7 @@ def main():
     signal.signal(signal.SIGINT, handle_shutdown)
 
     cleanup_interval = 1000
+    consumer_check_interval = 600
     loop_count = 0
 
     storage.cleanup(
@@ -346,6 +404,9 @@ def main():
 
         if loop_count % 30 == 0:
             write_status(status_path, health)
+
+        if loop_count % consumer_check_interval == 0:
+            check_consumers(config, sources)
 
     clip_manager.shutdown()
     logger.info("Sentinel stopped")
