@@ -97,6 +97,7 @@ class CameraClipper:
         self._record_start = 0.0
         self._stretch = False
         self._output_width = 0
+        self._stderr_tail = deque(maxlen=40)
 
     def start(self):
         self.save_path.mkdir(parents=True, exist_ok=True)
@@ -149,6 +150,7 @@ class CameraClipper:
 
         threading.Thread(
             target=self._drain_stderr,
+            args=(self._reader_proc,),
             name=f"clip-stderr-{self.name}",
             daemon=True,
         ).start()
@@ -163,7 +165,12 @@ class CameraClipper:
         if abs(ratio - 4 / 3) < 0.15:
             self._stretch = True
             self._output_width = (
-                self._frame_height * 16 // 9
+                (
+                    self._frame_height * 16 // 9
+                    + 1
+                )
+                // 2
+                * 2
             )
             logger.info(
                 "%s: 4:3 stream detected, "
@@ -173,14 +180,14 @@ class CameraClipper:
                 self._frame_height,
             )
 
-    def _drain_stderr(self):
-        proc = self._reader_proc
+    def _drain_stderr(self, proc: subprocess.Popen | None):
         if proc is None or proc.stderr is None:
             return
 
         for line in proc.stderr:
             text = line.decode("utf-8", errors="replace").rstrip()
             if text:
+                self._stderr_tail.append(text)
                 logger.debug(
                     "%s: ffmpeg: %s", self.name, text
                 )
@@ -359,6 +366,14 @@ class CameraClipper:
             )
             return
 
+        self._stderr_tail.clear()
+        threading.Thread(
+            target=self._drain_stderr,
+            args=(self._writer_proc,),
+            name=f"clip-writer-stderr-{self.name}",
+            daemon=True,
+        ).start()
+
         self._recording = True
         self._record_start = now
         self._clip_path = clip_path
@@ -376,27 +391,49 @@ class CameraClipper:
     def _finish_recording(self):
         self._recording = False
 
-        if self._writer_proc and self._writer_proc.stdin:
-            self._writer_proc.stdin.close()
-            try:
-                self._writer_proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self._writer_proc.kill()
+        proc = self._writer_proc
+        returncode = None
+        if proc is not None:
+            if proc.stdin:
+                proc.stdin.close()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+            returncode = proc.returncode
 
         self._writer_proc = None
 
         clip_path = getattr(self, "_clip_path", None)
 
         if clip_path and clip_path.exists():
-            size_mb = clip_path.stat().st_size / (
-                1024 * 1024
-            )
-            logger.info(
-                "%s: Recording saved %s (%.1f MB)",
-                self.name,
-                clip_path,
-                size_mb,
-            )
+            size = clip_path.stat().st_size
+            if size > 0:
+                size_mb = size / (1024 * 1024)
+                logger.info(
+                    "%s: Recording saved %s (%.1f MB)",
+                    self.name,
+                    clip_path,
+                    size_mb,
+                )
+            else:
+                logger.warning(
+                    "%s: Recording produced an empty clip, "
+                    "deleting %s",
+                    self.name,
+                    clip_path,
+                )
+                if returncode not in (None, 0):
+                    logger.warning(
+                        "%s: writer exited with %s: %s",
+                        self.name,
+                        returncode,
+                        " | ".join(self._stderr_tail),
+                    )
+                try:
+                    clip_path.unlink()
+                except OSError:
+                    pass
         else:
             logger.warning(
                 "%s: Recording failed", self.name
@@ -482,6 +519,28 @@ class ClipManager:
     def start(self):
         for name, clipper in self.clippers.items():
             clipper.start()
+
+        self._cleanup_empty_clips()
+
+    def _cleanup_empty_clips(self):
+        root = Path(self.config.clips.save_path)
+        if not root.is_dir():
+            return
+
+        removed = 0
+        for clip in root.glob("**/*.mp4"):
+            try:
+                if clip.stat().st_size == 0:
+                    clip.unlink()
+                    removed += 1
+            except OSError:
+                continue
+
+        if removed:
+            logger.info(
+                "Removed %d empty clip(s) from %s",
+                removed, root,
+            )
 
     def notify_detection(self, camera_name: str):
         clipper = self.clippers.get(camera_name)
