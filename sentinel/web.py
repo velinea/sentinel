@@ -23,41 +23,82 @@ app = FastAPI()
 
 _AUTH_USER = config.web.auth_user
 _AUTH_PASS = config.web.auth_password
-_AUTH_ENABLED = bool(_AUTH_USER and _AUTH_PASS)
+_AUTH_TOKEN = config.web.token
+_AUTH_ENABLED = bool(
+    (_AUTH_USER and _AUTH_PASS) or _AUTH_TOKEN
+)
+_COOKIE_NAME = "sentinel_token"
+_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
+
+
+def _auth_source(request: Request) -> str | None:
+    """Return the auth source ("token", "cookie", "basic") or None."""
+    token = request.query_params.get("token")
+    if _AUTH_TOKEN and token:
+        if hmac.compare_digest(token, _AUTH_TOKEN):
+            return "token"
+
+    cookie = request.cookies.get(_COOKIE_NAME)
+    if _AUTH_TOKEN and cookie:
+        if hmac.compare_digest(cookie, _AUTH_TOKEN):
+            return "cookie"
+
+    if _AUTH_USER and _AUTH_PASS:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(auth[6:]).decode(
+                    "utf-8"
+                )
+                user, password = decoded.split(":", 1)
+            except Exception:
+                return None
+
+            if (
+                hmac.compare_digest(user, _AUTH_USER)
+                and hmac.compare_digest(
+                    password, _AUTH_PASS
+                )
+            ):
+                return "basic"
+
+    return None
 
 
 def _check_auth(request: Request) -> None:
     if not _AUTH_ENABLED:
         return
 
-    auth = request.headers.get("Authorization", "")
+    source = _auth_source(request)
 
-    if not auth.startswith("Basic "):
+    if source is None:
+        headers = {}
+        if _AUTH_USER and _AUTH_PASS:
+            headers = {
+                "WWW-Authenticate": 'Basic realm="Sentinel"'
+            }
         raise HTTPException(
             status_code=401,
             detail="Authentication required",
-            headers={"WWW-Authenticate": 'Basic realm="Sentinel"'},
+            headers=headers,
         )
 
-    try:
-        decoded = base64.b64decode(auth[6:]).decode("utf-8")
-        user, password = decoded.split(":", 1)
-    except Exception:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid credentials",
-            headers={"WWW-Authenticate": 'Basic realm="Sentinel"'},
+
+@app.middleware("http")
+async def remember_auth(request, call_next):
+    response = await call_next(request)
+
+    source = _auth_source(request)
+    if _AUTH_TOKEN and source in ("token", "basic"):
+        response.set_cookie(
+            _COOKIE_NAME,
+            _AUTH_TOKEN,
+            max_age=_COOKIE_MAX_AGE,
+            httponly=True,
+            samesite="lax",
         )
 
-    user_ok = hmac.compare_digest(user, _AUTH_USER or "")
-    pass_ok = hmac.compare_digest(password, _AUTH_PASS or "")
-
-    if not (user_ok and pass_ok):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid credentials",
-            headers={"WWW-Authenticate": 'Basic realm="Sentinel"'},
-        )
+    return response
 
 
 INDEX_HTML = """\

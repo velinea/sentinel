@@ -71,6 +71,7 @@ class ClipConfig(BaseModel):
 class WebConfig(BaseModel):
     auth_user: str | None = None
     auth_password: str | None = None
+    token: str | None = None
 
 
 class Config(BaseModel):
