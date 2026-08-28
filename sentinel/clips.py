@@ -547,6 +547,12 @@ class ClipManager:
         if clipper:
             clipper.notify_detection()
 
+    def is_recording(self, camera_name: str) -> bool:
+        clipper = self.clippers.get(camera_name)
+        if clipper:
+            return clipper.is_recording
+        return False
+
     def shutdown(self):
         for clipper in self.clippers.values():
             clipper.shutdown()

@@ -66,6 +66,7 @@ class ClipConfig(BaseModel):
     save_path: str = "clips"
     crf: int = Field(default=23, ge=0, le=51)
     fps: int = Field(default=10, gt=0)
+    skip_detection_during_recording: bool = True
 
 
 class WebConfig(BaseModel):

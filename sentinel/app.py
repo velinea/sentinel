@@ -76,10 +76,18 @@ def check_consumers(config, sources):
             )
             continue
 
+        if not isinstance(streams, dict):
+            logger.warning(
+                "consumer-check: unexpected /api/streams "
+                "response from %s: %r",
+                url, type(streams).__name__,
+            )
+            continue
+
         for sname, info in streams.items():
             if not isinstance(info, dict):
                 continue
-            consumers = info.get("consumers", [])
+            consumers = info.get("consumers") or []
             stale = [
                 c for c in consumers
                 if (
@@ -221,6 +229,13 @@ def main():
                 continue
 
             state = states[camera.name]
+
+            if (
+                config.clips.skip_detection_during_recording
+                and clip_manager.is_recording(camera.name)
+            ):
+                next_poll[camera.name] = now + 1.0
+                continue
 
             logger.info(
                 "Processing %s",
