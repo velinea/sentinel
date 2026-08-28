@@ -33,6 +33,16 @@ class SnapshotStorage:
 
         return filename
 
+    def save_latest(self, camera_name: str, image: bytes):
+        camera_path = self.base_path / camera_name
+
+        camera_path.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        (camera_path / "latest.jpg").write_bytes(image)
+
     def cleanup(
         self,
         retention_days: int | None = None,

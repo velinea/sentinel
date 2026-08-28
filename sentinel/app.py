@@ -348,8 +348,9 @@ def main():
                             )
 
                 elif interesting:
+                    storage.save_latest(camera.name, image)
                     logger.info(
-                        "Objects stationary - "
+                        "Latest snapshot refreshed - "
                         "duplicate suppressed"
                     )
 
