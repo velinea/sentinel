@@ -195,17 +195,37 @@ def _build_index() -> HTMLResponse:
                     )
                     live_links += f' <a href="{main_url}" target="_blank">live (main)</a>'
 
+        img_v = ""
+        latest_jpg = storage / name / "latest.jpg"
+        if latest_jpg.is_file():
+            img_v = f"?v={int(latest_jpg.stat().st_mtime)}"
+
+        clip_v = ""
+        camera_dir = clips_path / name
+        if camera_dir.is_dir():
+            newest = max(
+                (
+                    f
+                    for f in camera_dir.glob("*.mp4")
+                    if f.is_file()
+                ),
+                key=lambda f: f.stat().st_mtime,
+                default=None,
+            )
+            if newest is not None:
+                clip_v = f"?v={int(newest.stat().st_mtime)}"
+
         card = f"""\
 <div class="card">
   <div class="card-header">{dot} {name}</div>
   <div class="card-body">
-    <img src="/latest/{name}.jpg" alt="{name}" loading="lazy">
+    <img src="/latest/{name}.jpg{img_v}" alt="{name}" loading="lazy">
   </div>
   <div class="card-footer">
     <span class="muted">{objects}</span>
     {error_html}
     &mdash;
-    <a href="/latest/{name}.mp4">latest clip</a>{live_links}
+    <a href="/latest/{name}.mp4{clip_v}">latest clip</a>{live_links}
   </div>
 </div>"""
         cards.append(card)
@@ -247,7 +267,7 @@ def latest_image(
         image,
         media_type="image/jpeg",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-store",
         },
     )
 
@@ -281,6 +301,6 @@ def latest_clip(
         clips[0],
         media_type="video/mp4",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-store",
         },
     )
