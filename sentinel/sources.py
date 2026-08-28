@@ -1,3 +1,4 @@
+import time
 from typing import Protocol
 
 import httpx
@@ -34,6 +35,26 @@ class Go2rtcSource:
         )
         response.raise_for_status()
         return response.content
+
+    def probe(self) -> tuple[bool, float]:
+        """Quick reachability check of the frame path.
+
+        Returns (served_ok, elapsed_seconds). Used to tell apart a
+        stalled snapshot/keyframe path from a fully dead feed.
+        """
+        start = time.monotonic()
+        try:
+            response = httpx.get(
+                f"{self.base_url}/api/frame.jpeg",
+                params={"src": self.src},
+                timeout=4.0,
+            )
+        except httpx.RequestError:
+            return False, 0.0
+        return (
+            response.status_code == 200,
+            time.monotonic() - start,
+        )
 
     def close(self):
         self._client.close()

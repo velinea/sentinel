@@ -395,6 +395,26 @@ def main():
 
                 interval = config.polling.error_interval
 
+                save_src = save_sources.get(camera.name)
+                if save_src is not None and hasattr(save_src, "probe"):
+                    ok, latency = save_src.probe()
+                    if ok:
+                        logger.warning(
+                            "%s: main stream serves frames "
+                            "(%.2fs) - snapshot path only "
+                            "affected, camera feed likely "
+                            "fine",
+                            camera.name,
+                            latency,
+                        )
+                    else:
+                        logger.warning(
+                            "%s: main stream probe also "
+                            "failed - camera feed likely "
+                            "down",
+                            camera.name,
+                        )
+
             except Exception:
                 logger.exception(
                     "%s: Unexpected error",
