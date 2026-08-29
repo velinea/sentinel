@@ -42,6 +42,8 @@ logging:
 #   token: YOUR_SECRET_TOKEN
 #   auth_user: sentinel
 #   auth_password: CHANGE_ME
+#   # Restrict the /live grid to specific cameras (default: all with a main stream)
+#   live_cameras: [front_door, front_yard, garage, driveway]
 
 # Optional: video clip recording (requires ffmpeg)
 # clips:

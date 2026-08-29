@@ -329,6 +329,7 @@ web:
 | token | Shared secret required on every URL (`?token=…`) or auto-set as a session cookie after the first authorized visit |
 | auth_user | Optional Basic HTTP auth username |
 | auth_password | Optional Basic HTTP auth password |
+| live_cameras | Restrict the `/live` grid to these camera names, in order (default: every camera with a main stream) |
 
 - With `token` set, append `?token=YOUR_SECRET_TOKEN` to any endpoint, e.g. `https://dashboard.example.com/?token=…` or `/live?token=…`. The first authorized page load sets a cookie, so images, clips and live tiles load without repeating the argument.
 - Tokens are compared in constant time and should be treated like your Home Assistant access token.
@@ -336,7 +337,7 @@ web:
 
 ## Live camera grid
 
-`GET /live` renders a fullscreen 2×2 grid of live video for every camera that has a main stream (`go2rtc_save_src`) configured. Tiles are served as motion-JPEG through:
+`GET /live` renders a fullscreen 2×2 grid of live video for every camera that has a main stream (`go2rtc_save_src`) configured — or only the subset named by `web.live_cameras`. Tiles are served as motion-JPEG through:
 
 ```
 GET /live/mjpeg/{camera}?res=main|sub
@@ -344,6 +345,7 @@ GET /live/mjpeg/{camera}?res=main|sub
 
 - `res=main` (default) streams `go2rtc_save_src`; `res=sub` streams `go2rtc_src` (about 10× less bandwidth).
 - Use the **Main/Sub** buttons above the grid to switch, tap a tile for solo fullscreen (tap again to return), and dead tiles reconnect automatically.
+- The **Fullscreen…** dropdown in the toolbar opens any camera (including ones not in the grid) in a full-screen solo view — useful for a high-res camera such as a 2560×1440 main stream.
 - Frames are JPEG snapshots pulled from each camera's LAN go2rtc (`go2rtc_url` or the global `go2rtc.url`) — the browser never needs direct access to go2rtc, and nothing routes through a public `stream_url`. Full-res main streams encode at roughly 0.5–1.5 fps; sub streams are noticeably smoother.
 - All `/live` endpoints require the same auth as the rest of the dashboard.
 

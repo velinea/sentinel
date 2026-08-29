@@ -312,7 +312,6 @@ def latest_clip(
     )
 
 
-_LIVE_FRAME_INTERVAL = 0.4
 _LIVE_FRAME_TIMEOUT = 5.0
 _MJPEG_BOUNDARY = "frame"
 
@@ -363,17 +362,26 @@ async def _mjpeg_frames(
                 + b"\r\n"
             )
 
-            await asyncio.sleep(_LIVE_FRAME_INTERVAL)
-
 
 @app.get("/live")
 def live(_auth: None = Depends(_check_auth)):
+    main_cams = [
+        camera
+        for camera in config.cameras
+        if camera.go2rtc_save_src and _live_base_url(camera)
+    ]
+
+    wanted = config.web.live_cameras
+    if wanted:
+        by_name = {camera.name: camera for camera in main_cams}
+        grid_cams = [
+            by_name[name] for name in wanted if name in by_name
+        ]
+    else:
+        grid_cams = main_cams
+
     tiles = []
-    for camera in config.cameras:
-        if not camera.go2rtc_save_src:
-            continue
-        if not _live_base_url(camera):
-            continue
+    for camera in grid_cams:
         tiles.append(
             f'<div class="tile" data-cam="{camera.name}">'
             f'<img src="/live/mjpeg/{camera.name}?res=main" '
@@ -387,8 +395,15 @@ def live(_auth: None = Depends(_check_auth)):
             "<p>No cameras with a main stream configured.</p>"
         )
 
+    options = "\n".join(
+        f'<option value="{camera.name}">{camera.name}</option>'
+        for camera in main_cams
+    )
+
     return HTMLResponse(
-        LIVE_HTML.replace("{tiles}", "\n".join(tiles))
+        LIVE_HTML.replace("{tiles}", "\n".join(tiles)).replace(
+            "{camera_options}", options
+        )
     )
 
 
@@ -463,8 +478,18 @@ LIVE_HTML = """\
   #toolbar button { background: #222; color: #ddd; border: 1px solid #333; border-radius: 6px;
            padding: 6px 12px; font-size: 0.8rem; cursor: pointer; }
   #toolbar button.on { background: #2a5; border-color: #2a5; color: #fff; }
+  #toolbar select { background: #222; color: #ddd; border: 1px solid #333; border-radius: 6px;
+           padding: 6px 8px; font-size: 0.8rem; cursor: pointer; }
   #toolbar .spacer { flex: 1; }
   #toolbar .back { color: #99c2ff; text-decoration: none; font-size: 0.8rem; }
+  #solo { position: fixed; inset: 0; background: #000; z-index: 20; display: none; flex-direction: column; }
+  #solo.open { display: flex; }
+  #solo-bar { display: flex; gap: 8px; padding: 8px 12px; background: #111; align-items: center; }
+  #solo-bar .name { color: #fff; font-size: 0.85rem; font-weight: 500; }
+  #solo-bar .spacer { flex: 1; }
+  #solo-bar button { background: #222; color: #ddd; border: 1px solid #333; border-radius: 6px;
+           padding: 6px 12px; font-size: 0.8rem; cursor: pointer; }
+  #solo img { flex: 1; width: 100%; object-fit: contain; }
   @media (max-width: 640px) {
     #grid { grid-template-columns: 1fr 1fr; }
   }
@@ -475,10 +500,22 @@ LIVE_HTML = """\
   <button id="btn-main" class="on" onclick="setRes('main')">Main</button>
   <button id="btn-sub" onclick="setRes('sub')">Sub</button>
   <span class="spacer"></span>
+  <select id="cam-select" onchange="if(this.value)openSolo(this.value);">
+    <option value="">Fullscreen&hellip;</option>
+    {camera_options}
+  </select>
   <a class="back" href="/">Sentinel</a>
 </div>
 <div id="grid">
 {tiles}
+</div>
+<div id="solo">
+  <div id="solo-bar">
+    <span class="name" id="solo-name"></span>
+    <span class="spacer"></span>
+    <button onclick="closeSolo()">Back to grid</button>
+  </div>
+  <img id="solo-img" alt="" onerror="retrySolo()">
 </div>
 <script>
   function retry(img) {
@@ -501,6 +538,27 @@ LIVE_HTML = """\
     for (var i = 0; i < imgs.length; i++) {
       imgs[i].src = '/live/mjpeg/' + imgs[i].closest('.tile').dataset.cam + '?res=' + res + '&t=' + Date.now();
     }
+    var solo = document.getElementById('solo-img');
+    if (solo.src) solo.src = '/live/mjpeg/' + document.getElementById('solo-name').textContent + '?res=' + res + '&t=' + Date.now();
+  }
+  function soloCam() {
+    var img = document.getElementById('solo-img');
+    return '/live/mjpeg/' + document.getElementById('solo-name').textContent + '?res=' + state.res + '&t=' + Date.now();
+  }
+  function openSolo(cam) {
+    document.getElementById('solo-name').textContent = cam;
+    document.getElementById('solo-img').src = soloCam();
+    document.getElementById('solo').classList.add('open');
+    document.getElementById('cam-select').selectedIndex = 0;
+  }
+  function closeSolo() {
+    document.getElementById('solo-img').src = '';
+    document.getElementById('solo').classList.remove('open');
+  }
+  function retrySolo() {
+    setTimeout(function () {
+      document.getElementById('solo-img').src = soloCam();
+    }, 2000);
   }
   var grid = document.getElementById('grid');
   grid.addEventListener('click', function (e) {
