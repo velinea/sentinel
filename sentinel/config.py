@@ -67,6 +67,7 @@ class ClipConfig(BaseModel):
     crf: int = Field(default=23, ge=0, le=51)
     fps: int = Field(default=10, gt=0)
     skip_detection_during_recording: bool = True
+    stretch_4_3_to_16_9: bool = False
 
 
 class WebConfig(BaseModel):

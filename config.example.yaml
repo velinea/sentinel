@@ -47,6 +47,9 @@ logging:
 #   save_path: "/PATH/TO/clips"
 #   crf: 23
 #   fps: 10
+#   # stretch 4:3 sub streams to 16:9 in saved clips.
+#   # Default false: clips keep the camera's native aspect.
+#   stretch_4_3_to_16_9: false
 
 cameras:
   - name: front_door

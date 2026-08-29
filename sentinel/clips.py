@@ -75,6 +75,7 @@ class CameraClipper:
         max_seconds: int,
         fps: int,
         crf: int,
+        stretch_4_3_to_16_9: bool = False,
     ):
         self.name = name
         self.stream_url = stream_url
@@ -83,6 +84,7 @@ class CameraClipper:
         self.max_seconds = max_seconds
         self.fps = fps
         self.crf = crf
+        self.stretch_4_3_to_16_9 = stretch_4_3_to_16_9
 
         self._reader_proc: subprocess.Popen | None = None
         self._writer_proc: subprocess.Popen | None = None
@@ -159,6 +161,10 @@ class CameraClipper:
 
     def _configure_stretch(self):
         if self._frame_width == 0 or self._frame_height == 0:
+            return
+
+        if not self.stretch_4_3_to_16_9:
+            self._stretch = False
             return
 
         ratio = self._frame_width / self._frame_height
@@ -514,6 +520,9 @@ class ClipManager:
                 max_seconds=max_seconds,
                 fps=config.clips.fps,
                 crf=config.clips.crf,
+                stretch_4_3_to_16_9=(
+                    config.clips.stretch_4_3_to_16_9
+                ),
             )
 
     def start(self):
