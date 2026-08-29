@@ -1,18 +1,24 @@
+import asyncio
 import base64
 import hmac
 import json
+import logging
 import time
 from pathlib import Path
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
     PlainTextResponse,
     Response,
+    StreamingResponse,
 )
 
 from sentinel.config import load_config
+
+logger = logging.getLogger("sentinel.web")
 
 config = load_config()
 storage = Path(config.storage.path)
@@ -130,7 +136,7 @@ INDEX_HTML = """\
 </style>
 </head>
 <body>
-<h1>Sentinel</h1>
+<h1>Sentinel <a href="/live" style="font-size:0.8rem;color:#5b9;text-decoration:none;margin-left:0.75rem;vertical-align:middle;">Live &rsaquo;</a></h1>
 <div class="grid">
 {cards}
 </div>
@@ -304,3 +310,221 @@ def latest_clip(
             "Cache-Control": "no-store",
         },
     )
+
+
+_LIVE_FRAME_INTERVAL = 0.4
+_LIVE_FRAME_TIMEOUT = 5.0
+_MJPEG_BOUNDARY = "frame"
+
+
+def _live_camera(name: str) -> dict | None:
+    for camera in config.cameras:
+        if camera.name == name:
+            return camera
+    return None
+
+
+def _live_base_url(camera) -> str | None:
+    base = camera.go2rtc_url or (
+        config.go2rtc.url if config.go2rtc else None
+    )
+    if base:
+        return base.rstrip("/")
+    return None
+
+
+async def _mjpeg_frames(
+    camera, base_url: str, src: str
+):
+    async with httpx.AsyncClient(timeout=_LIVE_FRAME_TIMEOUT) as client:
+        while True:
+            try:
+                response = await client.get(
+                    f"{base_url}/api/frame.jpeg",
+                    params={"src": src},
+                )
+                response.raise_for_status()
+            except httpx.HTTPError:
+                logger.warning(
+                    "live frame fetch failed for %s (%s)",
+                    camera.name,
+                    src,
+                )
+                await asyncio.sleep(1.0)
+                continue
+
+            yield (
+                b"--"
+                + _MJPEG_BOUNDARY.encode()
+                + b"\r\ncontent-type: image/jpeg\r\n"
+                + f"content-length: {len(response.content)}\r\n".encode()
+                + b"\r\n"
+                + response.content
+                + b"\r\n"
+            )
+
+            await asyncio.sleep(_LIVE_FRAME_INTERVAL)
+
+
+@app.get("/live")
+def live(_auth: None = Depends(_check_auth)):
+    tiles = []
+    for camera in config.cameras:
+        if not camera.go2rtc_save_src:
+            continue
+        if not _live_base_url(camera):
+            continue
+        tiles.append(
+            f'<div class="tile" data-cam="{camera.name}">'
+            f'<img src="/live/mjpeg/{camera.name}?res=main" '
+            f'alt="{camera.name}" onerror="retry(this)">'
+            f'<div class="label">{camera.name}</div>'
+            "</div>"
+        )
+
+    if not tiles:
+        return HTMLResponse(
+            "<p>No cameras with a main stream configured.</p>"
+        )
+
+    return HTMLResponse(
+        LIVE_HTML.replace("{tiles}", "\n".join(tiles))
+    )
+
+
+@app.get("/live/mjpeg/{camera}")
+def live_mjpeg(
+    camera: str,
+    res: str = "main",
+    _auth: None = Depends(_check_auth),
+):
+    cam = _live_camera(camera)
+    if cam is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Unknown camera",
+        )
+
+    base_url = _live_base_url(cam)
+    if base_url is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No go2rtc URL configured",
+        )
+
+    if res == "sub" and cam.go2rtc_src:
+        src = cam.go2rtc_src
+    elif cam.go2rtc_save_src:
+        src = cam.go2rtc_save_src
+    else:
+        src = cam.go2rtc_src
+
+    if not src:
+        raise HTTPException(
+            status_code=404,
+            detail="Camera has no go2rtc source",
+        )
+
+    return StreamingResponse(
+        _mjpeg_frames(cam, base_url, src),
+        media_type=(
+            "multipart/x-mixed-replace; boundary="
+            + _MJPEG_BOUNDARY
+        ),
+        headers={
+            "Cache-Control": "no-store",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+LIVE_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentinel &middot; Live</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #000; }
+  body { font-family: system-ui, sans-serif; }
+  #grid { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; height: 100vh; gap: 2px; background: #000; }
+  .tile { position: relative; overflow: hidden; background: #111; cursor: pointer; }
+  .tile img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .label { position: absolute; left: 6px; top: 6px; background: rgba(0,0,0,0.55); color: #fff;
+           font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; pointer-events: none; }
+  .tile.error img { visibility: hidden; }
+  .tile.error::after { content: "no signal"; position: absolute; inset: 0; display: flex;
+           align-items: center; justify-content: center; color: #666; font-size: 0.85rem; }
+  #grid.solo { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  #grid.solo .tile:not(.active) { display: none; }
+  #toolbar { display: flex; gap: 8px; padding: 8px 12px; background: #111; align-items: center; }
+  #toolbar button { background: #222; color: #ddd; border: 1px solid #333; border-radius: 6px;
+           padding: 6px 12px; font-size: 0.8rem; cursor: pointer; }
+  #toolbar button.on { background: #2a5; border-color: #2a5; color: #fff; }
+  #toolbar .spacer { flex: 1; }
+  #toolbar .back { color: #99c2ff; text-decoration: none; font-size: 0.8rem; }
+  @media (max-width: 640px) {
+    #grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <button id="btn-main" class="on" onclick="setRes('main')">Main</button>
+  <button id="btn-sub" onclick="setRes('sub')">Sub</button>
+  <span class="spacer"></span>
+  <a class="back" href="/">Sentinel</a>
+</div>
+<div id="grid">
+{tiles}
+</div>
+<script>
+  function retry(img) {
+    var tile = img.closest('.tile');
+    if (tile) tile.classList.add('error');
+    setTimeout(function () {
+      img.src = img.src.split('?')[0] + '?res=' + state.res + '&t=' + Date.now();
+    }, 2000);
+  }
+  function onLoaded(e) {
+    var tile = e.target.closest('.tile');
+    if (tile) tile.classList.remove('error');
+  }
+  var state = { res: 'main' };
+  function setRes(res) {
+    state.res = res;
+    document.getElementById('btn-main').classList.toggle('on', res === 'main');
+    document.getElementById('btn-sub').classList.toggle('on', res === 'sub');
+    var imgs = document.querySelectorAll('#grid .tile img');
+    for (var i = 0; i < imgs.length; i++) {
+      imgs[i].src = '/live/mjpeg/' + imgs[i].closest('.tile').dataset.cam + '?res=' + res + '&t=' + Date.now();
+    }
+  }
+  var grid = document.getElementById('grid');
+  grid.addEventListener('click', function (e) {
+    var tile = e.target.closest('.tile');
+    if (!tile) return;
+    if (grid.classList.contains('solo')) {
+      grid.classList.remove('solo');
+      tile.classList.remove('active');
+    } else if (tile === document.querySelector('#grid .tile.active')) {
+      grid.classList.remove('solo');
+      tile.classList.remove('active');
+    } else {
+      var prev = document.querySelector('#grid .tile.active');
+      if (prev) prev.classList.remove('active');
+      tile.classList.add('active');
+      grid.classList.add('solo');
+    }
+  });
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('#grid .tile img').forEach(function (img) {
+      img.addEventListener('load', onLoaded);
+    });
+  });
+</script>
+</body>
+</html>
+"""
