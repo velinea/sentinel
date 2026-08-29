@@ -11,7 +11,7 @@ Sentinel is split into three services:
 | Service | Role | Entry point |
 |---------|------|-------------|
 | **Sentinel** | Snapshot polling, filtering, activity tracking, storage, clip recording | `sentinel` CLI / `sentinel.__main__:main` |
-| **Sentinel HTTP** | FastAPI server: dashboard, snapshots, clips | `uvicorn sentinel.web:app` |
+| **Sentinel HTTP** | FastAPI server: dashboard, live camera grid, snapshots, clips | `uvicorn sentinel.web:app` |
 | **Sentinel Inference** | OpenVINO + YOLO inference (separate repo) | External |
 
 Splitting the HTTP server and inference into separate processes keeps each service lightweight and independently restartable.
@@ -114,12 +114,16 @@ The FastAPI server (`sentinel.web`) exposes:
 | Endpoint | Response |
 |----------|----------|
 | `GET /` | HTML dashboard — grid of all cameras with latest snapshots |
+| `GET /live` | HTML live 2×2 camera grid (motion-JPEG tiles) |
+| `GET /live/mjpeg/{camera}` | Live motion-JPEG stream for one camera (`?res=main|sub`) |
 | `GET /ping` | Plain text `pong` (used by Homarr health checks) |
 | `GET /health` | `{"status": "ok"}` |
 | `GET /latest/{camera}.jpg` | Latest detection snapshot (JPEG, no-cache) |
 | `GET /latest/{camera}.mp4` | Latest video clip (MP4, no-cache) |
 
-The dashboard and image/clip endpoints are intended to be consumed by Home Assistant's Generic Camera integration and homepage dashboards.
+The dashboard, live grid and image/clip endpoints are intended to be consumed by Home Assistant's Generic Camera integration and homepage dashboards.
+
+The live grid relays frames from each camera's LAN go2rtc URL, so browsers never need direct access to go2rtc. This makes it work through the same public reverse proxy/tunnel and token auth as the rest of the dashboard.
 
 ---
 

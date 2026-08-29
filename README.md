@@ -25,6 +25,10 @@ Sentinel was created as a modern replacement for DOODS, taking advantage of curr
 - go2rtc direct snapshot source (optional)
 - Home Assistant detection events (for automations)
 - Video clip recording with rolling buffer (optional)
+- Native-aspect clip recording (no distortion of 4:3 sub streams)
+- High-res main-stream snapshot saves (`go2rtc_save_src`)
+- Live 2×2 camera grid (motion-JPEG relay, main/sub toggle, solo fullscreen)
+- Token/basic-authenticated web dashboard
 - Automatic snapshot retention and cleanup
 - Configurable logging levels
 - Graceful shutdown handling
@@ -118,7 +122,8 @@ Current functionality includes:
 - YOLO/OpenVINO inference
 - Per-camera object filtering
 - Activity mode with movement tracking
-- Web dashboard with camera grid
+- Web dashboard with camera grid and token/basic auth
+- Live camera grid (motion-JPEG relay, main/sub toggle, tap-for-fullscreen)
 - HTTP snapshot and clip endpoints
 - Snapshot storage with retention cleanup
 - Video clip recording with rolling buffer
@@ -130,7 +135,7 @@ Current functionality includes:
 Planned improvements include:
 
 - Docker packaging
-- Expanded documentation
+- Automated test suite
 
 ---
 

@@ -33,9 +33,13 @@ logging:
 #   url: http://localhost:1984
 #   stream_url: https://go2rtc.yourdomain.com
 
-# Optional: web dashboard auth (Basic HTTP)
-# Recommended when using Tailscale Funnel or any public exposure
+# Optional: web dashboard auth
+# Recommended when using Tailscale Funnel or any public exposure.
+# token: a secret required on every URL (?token=...) or auto-set as a
+# session cookie after the first authorized visit.
+# auth_user/auth_password: optional Basic HTTP auth alternative.
 # web:
+#   token: YOUR_SECRET_TOKEN
 #   auth_user: sentinel
 #   auth_password: CHANGE_ME
 
@@ -47,6 +51,8 @@ logging:
 #   save_path: "/PATH/TO/clips"
 #   crf: 23
 #   fps: 10
+#   # Skip detection polling while a clip is being recorded (default true)
+#   skip_detection_during_recording: true
 #   # stretch 4:3 sub streams to 16:9 in saved clips.
 #   # Default false: clips keep the camera's native aspect.
 #   stretch_4_3_to_16_9: false

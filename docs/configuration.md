@@ -123,11 +123,13 @@ If you run [go2rtc](https://github.com/AlexxIT/go2rtc) (e.g. as a Home Assistant
 ```yaml
 go2rtc:
   url: http://localhost:1984
+  stream_url: https://go2rtc.example.com
 ```
 
 | Setting | Description |
 |---------|-------------|
-| url | Base URL of the go2rtc instance |
+| url | Base URL of the go2rtc instance (used for API calls and snapshot fetches) |
+| stream_url | Optional public base URL (e.g. through a tunnel); used for browser-facing "live (main/sub)" links in the dashboard instead of `url` |
 
 When using go2rtc, set `source: go2rtc` and `go2rtc_src` on individual cameras (see below).
 
@@ -145,6 +147,8 @@ clips:
   save_path: /home/sentinel/sentinel/clips
   crf: 23
   fps: 10
+  skip_detection_during_recording: true
+  stretch_4_3_to_16_9: false
 ```
 
 | Setting | Description |
@@ -155,6 +159,10 @@ clips:
 | save_path | Directory where clips are saved |
 | crf | H.264 encoding quality (lower = better, 0-51) |
 | fps | Frames per second for the output clip |
+| skip_detection_during_recording | Skip detection polling while a clip is being recorded (default: `true`) |
+| stretch_4_3_to_16_9 | Force-stretch 4:3 sub streams to 16:9 in saved clips (default: `false` — clips keep the camera's native aspect) |
+
+Clips are always recorded from the camera's `go2rtc_src` (sub) stream. The main stream (`go2rtc_save_src`) is used only for high-res detection snapshots.
 
 Clips are only available for go2rtc cameras. Each camera's clips are saved in a subdirectory:
 
@@ -199,6 +207,8 @@ cameras:
 | entity | Home Assistant camera entity ID |
 | objects | Object labels that trigger a detection |
 | source | Snapshot source: `ha` (default) or `go2rtc` |
+| go2rtc_url | Per-camera go2rtc API base URL (overrides global `go2rtc.url`, e.g. a second go2rtc instance) |
+| go2rtc_stream_url | Per-camera public go2rtc URL for dashboard live links (overrides global `go2rtc.stream_url`) |
 | go2rtc_src | go2rtc stream name (required when `source: go2rtc`) |
 | go2rtc_save_src | go2rtc stream name for high-res saves (optional) |
 | notify | Fire a `sentinel_detection` event on activity (default: `false`) |
@@ -302,6 +312,41 @@ cameras:
 
 When activity is detected, Sentinel fetches a fresh frame from the main stream before saving. The second fetch only happens on actual detections, so idle polling remains fast. If the main stream fetch fails, Sentinel falls back to saving the detection image and logs a warning.
 
+## Web dashboard auth
+
+The HTTP server exposes the dashboard and video endpoints. By default it is **unauthenticated** — enable auth whenever the server is reachable beyond your local network (Tailscale Funnel, a public tunnel, etc.).
+
+```yaml
+web:
+  token: YOUR_SECRET_TOKEN
+  # optional: Basic HTTP auth as an alternative or complement
+  auth_user: sentinel
+  auth_password: CHANGE_ME
+```
+
+| Setting | Description |
+|---------|-------------|
+| token | Shared secret required on every URL (`?token=…`) or auto-set as a session cookie after the first authorized visit |
+| auth_user | Optional Basic HTTP auth username |
+| auth_password | Optional Basic HTTP auth password |
+
+- With `token` set, append `?token=YOUR_SECRET_TOKEN` to any endpoint, e.g. `https://dashboard.example.com/?token=…` or `/live?token=…`. The first authorized page load sets a cookie, so images, clips and live tiles load without repeating the argument.
+- Tokens are compared in constant time and should be treated like your Home Assistant access token.
+- The `?token=` argument works directly in Home Assistant companion-app dashboard URLs and generic camera card URLs.
+
+## Live camera grid
+
+`GET /live` renders a fullscreen 2×2 grid of live video for every camera that has a main stream (`go2rtc_save_src`) configured. Tiles are served as motion-JPEG through:
+
+```
+GET /live/mjpeg/{camera}?res=main|sub
+```
+
+- `res=main` (default) streams `go2rtc_save_src`; `res=sub` streams `go2rtc_src` (about 10× less bandwidth).
+- Use the **Main/Sub** buttons above the grid to switch, tap a tile for solo fullscreen (tap again to return), and dead tiles reconnect automatically.
+- Frames are JPEG snapshots pulled from each camera's LAN go2rtc (`go2rtc_url` or the global `go2rtc.url`) — the browser never needs direct access to go2rtc, and nothing routes through a public `stream_url`. Full-res main streams encode at roughly 0.5–1.5 fps; sub streams are noticeably smoother.
+- All `/live` endpoints require the same auth as the rest of the dashboard.
+
 ## Complete example
 
 ```yaml
@@ -338,7 +383,7 @@ cameras:
     entity: camera.terassi_sannce_1
     source: go2rtc
     go2rtc_src: cam0_sub
-    go2rtc_save_src: cam0
+    go2rtc_save_src: cam0_main
     notify: true
     notify_title: "Front Door"
     objects:
