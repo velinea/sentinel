@@ -41,6 +41,7 @@ Sentinel was created as a modern replacement for DOODS, taking advantage of curr
 - Native-aspect clip recording (no distortion of 4:3 sub streams)
 - High-res main-stream snapshot saves (`go2rtc_save_src`)
 - Live 2×2 camera grid (iframes from go2rtc)
+- NVR recordings timeline page (`/recordings`) — browse and download the NVR's full-resolution continuous recordings on demand
 - Token/basic-authenticated web dashboard
 - Automatic snapshot retention and cleanup
 - Configurable logging levels
@@ -136,7 +137,8 @@ Current functionality includes:
 - Per-camera object filtering
 - Activity mode with movement tracking
 - Web dashboard with camera grid and token/basic auth
-- Live camera grid (motion-JPEG relay, main/sub toggle, tap-for-fullscreen)
+- Live camera grid (go2rtc embedded players, 2×2)
+- Applies to NVR timeline: browse/download full-resolution NVR recordings
 - HTTP snapshot and clip endpoints
 - Snapshot storage with retention cleanup
 - Video clip recording with rolling buffer

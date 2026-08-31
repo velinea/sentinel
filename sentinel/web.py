@@ -1,6 +1,10 @@
+import asyncio
 import base64
 import hmac
 import json
+import logging
+import tempfile
+import time
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -8,10 +12,13 @@ from fastapi.responses import (
     FileResponse,
     HTMLResponse,
     PlainTextResponse,
-    Response,
 )
+from starlette.background import BackgroundTask
 
 from sentinel.config import load_config
+from sentinel.nvr import NvrClient, NvrError, type_name
+
+logger = logging.getLogger("sentinel.web")
 
 config = load_config()
 storage = Path(config.storage.path)
@@ -19,6 +26,15 @@ clips_path = Path(config.clips.save_path)
 status_path = storage / "status.json"
 
 app = FastAPI()
+
+_NVR_CLIENT: NvrClient | None = None
+if config.nvr:
+    _NVR_CLIENT = NvrClient(
+        host=config.nvr.host,
+        user=config.nvr.user,
+        password=config.nvr.password,
+        http_port=config.nvr.http_port,
+    )
 
 _AUTH_USER = config.web.auth_user
 _AUTH_PASS = config.web.auth_password
@@ -129,7 +145,7 @@ INDEX_HTML = """\
 </style>
 </head>
 <body>
-<h1>Sentinel <a href="/live" style="font-size:0.8rem;color:#5b9;text-decoration:none;margin-left:0.75rem;vertical-align:middle;">Live &rsaquo;</a></h1>
+<h1>Sentinel <a href="/live" style="font-size:0.8rem;color:#5b9;text-decoration:none;margin-left:0.75rem;vertical-align:middle;">Live &rsaquo;</a>{recordings_link}</h1>
 <div class="grid">
 {cards}
 </div>
@@ -230,7 +246,16 @@ def _build_index() -> HTMLResponse:
         cards.append(card)
 
     return HTMLResponse(
-        INDEX_HTML.replace("{cards}", "\n".join(cards))
+        INDEX_HTML.replace(
+            "{cards}", "\n".join(cards)
+        ).replace(
+            "{recordings_link}",
+            ' <a href="/recordings" style="font-size:0.8rem;color:#5b9;'
+            'text-decoration:none;margin-left:0.75rem;vertical-align:middle;">'
+            "Recordings &rsaquo;</a>"
+            if config.nvr
+            else "",
+        )
     )
 
 
@@ -372,6 +397,332 @@ LIVE_HTML = """\
 <div id="grid">
 {iframes}
 </div>
+</body>
+</html>
+"""
+
+
+def _nvr_or_404() -> NvrClient:
+    if _NVR_CLIENT is None:
+        raise HTTPException(
+            status_code=503,
+            detail="NVR not configured (set 'nvr' in config.yaml)",
+        )
+    return _NVR_CLIENT
+
+
+def _nvr_cameras() -> list:
+    return [
+        camera
+        for camera in config.cameras
+        if camera.nvr_channel is not None
+    ]
+
+
+@app.get("/recordings")
+def recordings_page(_auth: None = Depends(_check_auth)):
+    cams = "".join(
+        f'<option value="{camera.name}">{camera.name}</option>'
+        for camera in _nvr_cameras()
+    )
+    if not cams:
+        return HTMLResponse(
+            "<p>No cameras have an NVR channel configured. Set "
+            "`nvr_channel` on cameras in config.yaml.</p>"
+        )
+    return HTMLResponse(
+        RECORDINGS_HTML.replace(
+            "{camera_options}", cams
+        ).replace("{cams_json}", "")
+    )
+
+
+@app.get("/recordings/search")
+def recordings_search(
+    date: str,
+    camera: str,
+    types: int = 15,
+    _auth: None = Depends(_check_auth),
+):
+    client = _nvr_or_404()
+
+    by_name = {cam.name: cam for cam in _nvr_cameras()}
+    cam = by_name.get(camera)
+    if cam is None:
+        raise HTTPException(status_code=404, detail="Unknown camera")
+
+    channel_mask = 1 << (cam.nvr_channel - 1)
+
+    try:
+        segments = client.search(
+            date=date,
+            channels=channel_mask,
+            types=types,
+        )
+    except NvrError as exc:
+        return {"error": str(exc)}
+
+    rows = []
+    now = time.time()
+    for seg in segments:
+        rows.append(
+            {
+                "channel": seg.channel,
+                "type": seg.type,
+                "type_name": type_name(seg.type),
+                "begin": seg.begin,
+                "end": seg.end,
+                "duration": seg.end - seg.begin,
+                "complete": seg.end <= now,
+            }
+        )
+
+    return {"camera": camera, "segments": rows}
+
+
+@app.get("/recordings/download")
+async def recordings_download(
+    channel: int,
+    begin: int,
+    end: int,
+    _auth: None = Depends(_check_auth),
+):
+    client = _nvr_or_404()
+
+    if channel < 0 or channel > 3:
+        raise HTTPException(status_code=400, detail="Invalid channel (0-3)")
+
+    tmpdir = Path(tempfile.mkdtemp(prefix="nvr_dl_"))
+
+    def _cleanup():
+        for p in tmpdir.iterdir():
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
+        try:
+            tmpdir.rmdir()
+        except OSError:
+            pass
+
+    try:
+        flv_path = tmpdir / f"seg_{channel}_{begin}_{end}.flv"
+
+        # Stream FLV to disk off the event loop (blocking httpx in a thread).
+        await asyncio.to_thread(
+            client.fetch_flv_to_path,
+            channel,
+            begin,
+            end,
+            str(flv_path),
+        )
+
+        mp4_path = flv_path.with_suffix(".mp4")
+
+        proc = await asyncio.create_subprocess_exec(
+            "ffmpeg", "-y", "-i", str(flv_path),
+            "-c", "copy",
+            "-movflags", "+faststart",
+            "-f", "mp4",
+            str(mp4_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+
+        if proc.returncode != 0 or not mp4_path.exists():
+            raise HTTPException(
+                status_code=500,
+                detail=f"FFmpeg remux failed (exit={proc.returncode}): "
+                + stderr.decode(errors="replace")[-500:],
+            )
+    except NvrError as exc:
+        # Free the large temp files immediately on failure.
+        _cleanup()
+        raise HTTPException(status_code=502, detail=str(exc))
+    except Exception:
+        _cleanup()
+        raise
+
+    return FileResponse(
+        mp4_path,
+        media_type="video/mp4",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": (
+                f"attachment; filename=\"nvr_ch{channel}_{begin}.mp4\""
+            ),
+        },
+        background=BackgroundTask(_cleanup),
+    )
+
+
+RECORDINGS_HTML = """\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentinel &middot; NVR Recordings</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #111; color: #ddd;
+         padding: 1.25rem; }
+  h1 { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; color: #fff; }
+  h1 a { color: #5b9; text-decoration: none; font-size: 0.8rem; margin-left: 0.75rem;
+         vertical-align: middle; }
+  .controls { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;
+              margin-bottom: 1rem; }
+  .controls label { font-size: 0.8rem; color: #999; }
+  .controls input, .controls select { background: #2a2a2a; color: #fff;
+           border: 1px solid #444; border-radius: 6px; padding: 0.4rem 0.5rem;
+           font-size: 0.8rem; color-scheme: dark; }
+  .controls input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8); }
+  .controls button { background: #2a5; color: #fff; border: none; border-radius: 6px;
+           padding: 0.4rem 0.9rem; font-size: 0.8rem; cursor: pointer; }
+  .controls button:disabled { background: #444; cursor: default; }
+  .controls button.secondary { background: transparent; color: #5b9; border: 1px solid #333; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  th { text-align: left; color: #999; font-weight: 500; padding: 0.4rem 0.6rem;
+       border-bottom: 1px solid #2a2a2a; }
+  td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #1d1d1d; }
+  tr.still-recording td { color: #5b9; font-style: italic; }
+  tr.missing td { color: #555; }
+  a { color: #5b9; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .muted { color: #555; }
+  .empty { color: #555; padding: 2rem 0; text-align: center; }
+  .error { color: #e44; padding: 1rem 0; }
+  .types-group { display: flex; gap: 0.4rem; margin-left: 0.5rem; }
+  .types-group label { display: flex; align-items: center; gap: 0.2rem; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>NVR Recordings
+  <a href="/">&laquo; Sentinel</a>
+  <a href="/live" style="margin-left:0.4rem;">Live &rsaquo;</a>
+</h1>
+
+<div class="controls">
+  <label>Date</label>
+  <input type="date" id="date">
+  <label>Camera</label>
+  <select id="cam">{camera_options}</select>
+  <label>Types</label>
+  <div class="types-group">
+    <label><input type="checkbox" name="type" value="1" checked>Time</label>
+    <label><input type="checkbox" name="type" value="2" checked>Motion</label>
+    <label><input type="checkbox" name="type" value="4" checked>Alarm</label>
+  </div>
+  <button id="btn-search" onclick="doSearch()">Search</button>
+  <button class="secondary" id="btn-today" onclick="setToday()">Today</button>
+</div>
+
+<div id="results"></div>
+
+<script>
+(function () {
+  var d = document.getElementById('date');
+  var now = new Date();
+  var mm = ('0' + (now.getMonth() + 1)).slice(-2);
+  var dd = ('0' + now.getDate()).slice(-2);
+  d.value = now.getFullYear() + '-' + mm + '-' + dd;
+})();
+
+function setToday() {
+  var now = new Date();
+  var mm = ('0' + (now.getMonth() + 1)).slice(-2);
+  var dd = ('0' + now.getDate()).slice(-2);
+  document.getElementById('date').value = now.getFullYear() + '-' + mm + '-' + dd;
+  doSearch();
+}
+
+function tsStr(ts) {
+  var d = new Date(ts * 1000);
+  var hh = ('0' + d.getHours()).slice(-2);
+  var mm = ('0' + d.getMinutes()).slice(-2);
+  var ss = ('0' + d.getSeconds()).slice(-2);
+  return hh + ':' + mm + ':' + ss;
+}
+
+function durStr(secs) {
+  if (secs < 60) return secs + 's';
+  var m = Math.floor(secs / 60);
+  var s = secs % 60;
+  return m + 'm ' + (s ? s + 's' : '');
+}
+
+function doSearch() {
+  var btn = document.getElementById('btn-search');
+  btn.disabled = true;
+  var cam = document.getElementById('cam').value;
+  var date = document.getElementById('date').value;
+  var typeChecks = document.querySelectorAll('input[name="type"]:checked');
+  var types = 0;
+  for (var i = 0; i < typeChecks.length; i++) {
+    types += parseInt(typeChecks[i].value);
+  }
+  if (!types) {
+    document.getElementById('results').innerHTML = '<div class="error">Select at least one type</div>';
+    btn.disabled = false;
+    return;
+  }
+
+  var url = '/recordings/search?date=' + encodeURIComponent(date)
+    + '&camera=' + encodeURIComponent(cam) + '&types=' + types;
+
+  var controller = (window.AbortController) ? new AbortController() : null;
+  var timer = (controller) ? setTimeout(function () { controller.abort(); }, 20000) : null;
+
+  fetch(url, controller ? { signal: controller.signal } : {})
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (data.error) {
+        document.getElementById('results').innerHTML = '<div class="error">' + data.error + '</div>';
+        btn.disabled = false;
+        return;
+      }
+      renderTable(data.segments, cam);
+      btn.disabled = false;
+    })
+    .catch(function (err) {
+      var msg = (err && err.name === 'AbortError') ? 'Request timed out' : ('Failed: ' + err);
+      document.getElementById('results').innerHTML = '<div class="error">' + msg + '</div>';
+      btn.disabled = false;
+    })
+    .finally(function () { if (timer) clearTimeout(timer); });
+}
+
+function renderTable(segs, cam) {
+  if (!segs || !segs.length) {
+    document.getElementById('results').innerHTML = '<div class="empty">No recordings found</div>';
+    return;
+  }
+  var now = Math.floor(Date.now() / 1000);
+  var html = '<table><thead><tr><th>Start</th><th>End</th><th>Duration</th><th>Type</th><th></th></tr></thead><tbody>';
+  for (var i = 0; i < segs.length; i++) {
+    var s = segs[i];
+    var cls = '';
+    var action = '';
+    if (!s.complete) {
+      cls = ' class="still-recording"';
+      action = '<em>recording&hellip;</em>';
+    } else {
+      action = '<a href="/recordings/download?channel=' + s.channel
+        + '&begin=' + s.begin + '&end=' + s.end + '">Download MP4</a>';
+    }
+    html += '<tr' + cls + '>'
+      + '<td>' + tsStr(s.begin) + '</td>'
+      + '<td>' + tsStr(s.end) + '</td>'
+      + '<td>' + durStr(s.duration) + '</td>'
+      + '<td>' + s.type_name + '</td>'
+      + '<td>' + action + '</td>'
+      + '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('results').innerHTML = html;
+}
+</script>
 </body>
 </html>
 """

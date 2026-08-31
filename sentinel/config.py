@@ -28,6 +28,7 @@ class CameraConfig(BaseModel):
     clip_enabled: bool | None = None
     clip_max_seconds: int | None = None
     stretch_4_3_to_16_9: bool | None = None
+    nvr_channel: int | None = None
 
 
 class InferenceConfig(BaseModel):
@@ -78,6 +79,13 @@ class WebConfig(BaseModel):
     live_cameras: list[str] | None = None
 
 
+class NvrConfig(BaseModel):
+    host: str
+    user: str = "admin"
+    password: str
+    http_port: int = Field(default=80, ge=1, le=65535)
+
+
 class Config(BaseModel):
     homeassistant: HomeAssistantConfig
     cameras: list[CameraConfig]
@@ -90,6 +98,7 @@ class Config(BaseModel):
     notification: NotificationConfig = NotificationConfig()
     clips: ClipConfig = ClipConfig()
     web: WebConfig = WebConfig()
+    nvr: NvrConfig | None = None
 
 
 def load_config(filename="config.yaml") -> Config:
