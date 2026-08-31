@@ -13,7 +13,7 @@ Sentinel was created as a modern replacement for DOODS, taking advantage of curr
 ---
 ## Dashboard
 <div align="center">
-  <img src=docs/dashboard.png? alt="Sentinel logo" width="600"/>
+  <img src=docs/dashboard.png alt="Sentinel logo" width="600"/>
 </div>
 
 ---
