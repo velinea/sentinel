@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import time
 import urllib.parse
 from dataclasses import dataclass
 
@@ -81,8 +82,79 @@ class NvrClient:
                 )
                 response.raise_for_status()
             except httpx.HTTPError as exc:
-                raise NvrError(f"NVR request failed: {exc}") from exc
+                detail = exc
+                if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
+                    detail = (
+                        f"{exc} NVR response: "
+                        f"{exc.response.text[:200]!r}"
+                    )
+                raise NvrError(f"NVR request failed: {detail}") from exc
         return response
+
+    def fetch_flv_to_path(
+        self,
+        channel: int,
+        begin: int,
+        end: int,
+        dest: str,
+        retries: int = 3,
+    ) -> str:
+        """Stream an FLV segment to `dest`, retrying transient failures.
+
+        Returns the segment name (channel, begin).
+        """
+        url = self._base + "/cgi-bin/flv.cgi?" + urllib.parse.urlencode(
+            {
+                "u": self.user,
+                "p": self.password,
+                "mode": "time",
+                "chn": channel,
+                "begin": begin,
+                "end": end,
+                "mute": "false",
+                "download": "1",
+            }
+        )
+        last_exc: Exception | None = None
+        for attempt in range(retries):
+            with self._lock:
+                try:
+                    with httpx.stream(
+                        "GET",
+                        url,
+                        timeout=(5.0, 300.0),
+                        follow_redirects=True,
+                    ) as response:
+                        if response.status_code != 200:
+                            body = response.read()[:200].decode(
+                                errors="replace"
+                            )
+                            raise NvrError(
+                                f"NVR stream returned "
+                                f"{response.status_code}: {body!r}"
+                            )
+                        with open(dest, "wb") as fh:
+                            for chunk in response.iter_bytes(
+                                chunk_size=1 << 20
+                            ):
+                                fh.write(chunk)
+                    return f"ch{channel}_{begin}"
+                except (httpx.HTTPError, NvrError, OSError) as exc:
+                    last_exc = exc
+                    logger.warning(
+                        "NVR stream fetch failed (attempt %d/%d) "
+                        "ch%s: %s",
+                        attempt + 1,
+                        retries,
+                        channel,
+                        exc,
+                    )
+                    if attempt < retries - 1:
+                        time.sleep(2)
+        raise NvrError(
+            f"NVR segment download failed after {retries} attempts: "
+            f"{last_exc}"
+        )
 
     @staticmethod
     def _parse_xml_attrs(xml: str) -> dict[str, str]:
@@ -183,41 +255,3 @@ class NvrClient:
                 )
             )
         return segments
-
-    def stream_url(
-        self,
-        channel: int,
-        begin: int,
-        end: int,
-        download: bool = True,
-    ) -> str:
-        """Build the flv.cgi URL for one channel/time range."""
-        query = urllib.parse.urlencode(
-            {
-                "u": self.user,
-                "p": self.password,
-                "mode": "time",
-                "chn": channel,
-                "begin": begin,
-                "end": end,
-                "mute": "false",
-                "download": "1" if download else "false",
-            }
-        )
-        return f"{self._base}/cgi-bin/flv.cgi?{query}"
-
-    def fetch_flv(self, channel: int, begin: int, end: int) -> httpx.Response:
-        """Stream the raw FLV response for a segment (downloaded to memory)."""
-        return self._get(
-            "/cgi-bin/flv.cgi",
-            {
-                "u": self.user,
-                "p": self.password,
-                "mode": "time",
-                "chn": channel,
-                "begin": begin,
-                "end": end,
-                "mute": "false",
-                "download": "1",
-            },
-        )

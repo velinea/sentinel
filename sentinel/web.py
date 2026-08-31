@@ -13,6 +13,7 @@ from fastapi.responses import (
     HTMLResponse,
     PlainTextResponse,
 )
+from starlette.background import BackgroundTask
 
 from sentinel.config import load_config
 from sentinel.nvr import NvrClient, NvrError, type_name
@@ -491,34 +492,56 @@ async def recordings_download(
     if channel < 1 or channel > 8:
         raise HTTPException(status_code=400, detail="Invalid channel (1-8)")
 
+    tmpdir = Path(tempfile.mkdtemp(prefix="nvr_dl_"))
+
     try:
-        response = client.fetch_flv(channel=channel, begin=begin, end=end)
-    except NvrError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+        flv_path = tmpdir / f"seg_{channel}_{begin}_{end}.flv"
 
-    with tempfile.NamedTemporaryFile(suffix=".flv") as flv_file:
-        flv_file.write(response.content)
-        flv_file.flush()
+        # Stream FLV to disk off the event loop (blocking httpx in a thread).
+        await asyncio.to_thread(
+            client.fetch_flv_to_path,
+            channel,
+            begin,
+            end,
+            str(flv_path),
+        )
 
-        mp4_path = flv_file.name.replace(".flv", ".mp4")
+        mp4_path = flv_path.with_suffix(".mp4")
 
         proc = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-y", "-i", flv_file.name,
+            "ffmpeg", "-y", "-i", str(flv_path),
             "-c", "copy",
             "-movflags", "+faststart",
             "-f", "mp4",
-            mp4_path,
+            str(mp4_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         _, stderr = await proc.communicate()
 
-    if proc.returncode != 0 or not Path(mp4_path).exists():
-        raise HTTPException(
-            status_code=500,
-            detail=f"FFmpeg remux failed (exit={proc.returncode}): "
-            + stderr.decode(errors="replace")[-500:],
-        )
+        if proc.returncode != 0 or not mp4_path.exists():
+            raise HTTPException(
+                status_code=500,
+                detail=f"FFmpeg remux failed (exit={proc.returncode}): "
+                + stderr.decode(errors="replace")[-500:],
+            )
+    except NvrError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    finally:
+        # Remove the (large) FLV; keep the MP4 until the response is served.
+        for p in tmpdir.glob("*.flv"):
+            p.unlink(missing_ok=True)
+
+    def _cleanup():
+        for p in tmpdir.iterdir():
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
+        try:
+            tmpdir.rmdir()
+        except OSError:
+            pass
 
     return FileResponse(
         mp4_path,
@@ -529,6 +552,7 @@ async def recordings_download(
                 f"attachment; filename=\"nvr_ch{channel}_{begin}.mp4\""
             ),
         },
+        background=BackgroundTask(_cleanup),
     )
 
 
