@@ -350,6 +350,35 @@ The base URL is the camera's `go2rtc_stream_url`, or its `go2rtc_url`, then the 
 
 The four tiles are maximal — no titles or chrome — and `web.live_cameras` controls which cameras appear and their order.
 
+## NVR recordings timeline
+
+Sentinel can show the NVR's continuous recordings (full-resolution 720p, kept on the NVR) on a `/recordings` page — a complement to Sentinel's own detection clips. This requires an `nvr` block and a `nvr_channel` on each camera that lives on the NVR:
+
+```yaml
+nvr:
+  host: 192.168.1.250
+  user: admin
+  password: CHANGE_ME
+  http_port: 80
+
+cameras:
+  - name: driveway
+    ...
+    nvr_channel: 1   # NVR physical channel this camera maps to
+```
+
+| Setting | Description |
+|---------|-------------|
+| `nvr.host` | NVR hostname or IP |
+| `nvr.user` | NVR web username (default `admin`) |
+| `nvr.password` | NVR web password |
+| `nvr.http_port` | NVR HTTP port (default `80`) |
+| `cameras[].nvr_channel` | 1-indexed NVR channel for that camera; omit to exclude a camera from the timeline (e.g. a non-NVR camera) |
+
+The `/recordings` page lists recording segments by date, camera, and type (Time/Motion/Alarm) and lets you download any segment as an MP4. Sentinel downloads the segment as FLV from the NVR and remuxes it to MP4 with ffmpeg (`-c copy`, no re-encode), so CPU cost is minimal and quality is native 720p. NVR credentials never reach the browser.
+
+> **Note:** The NVR allows only one active session, so Sentinel serializes NVR calls (search/download). The two buttons in the page (Search, Today) only hit the NVR on your explicit action — nothing polls it in the background.
+
 ## Complete example
 
 ```yaml

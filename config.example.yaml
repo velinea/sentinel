@@ -59,6 +59,14 @@ logging:
 #   # Default false: clips keep the camera's native aspect.
 #   stretch_4_3_to_16_9: false
 
+# Optional: NVR (XiongMai CGI) recordings timeline on /recordings.
+# Requires each NVR camera to also set nvr_channel below.
+# nvr:
+#   host: 192.168.1.250
+#   user: admin
+#   password: CHANGE_ME
+#   http_port: 80
+
 cameras:
   - name: front_door
     entity: camera.terassi_sannce_1
@@ -129,5 +137,16 @@ cameras:
 #     go2rtc_src: reolink_sub
 #     go2rtc_save_src: reolink_main
 #     stretch_4_3_to_16_9: false
+#     objects:
+#       - person
+
+# Example: NVR channel mapping for the /recordings timeline
+# cameras:
+#   - name: driveway
+#     entity: camera.piha_sannce_4
+#     source: go2rtc
+#     go2rtc_src: cam0_sub
+#     go2rtc_save_src: cam0_main
+#     nvr_channel: 1   # 1-indexed NVR physical channel; omit to exclude from timeline
 #     objects:
 #       - person

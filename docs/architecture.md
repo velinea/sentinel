@@ -115,6 +115,9 @@ The FastAPI server (`sentinel.web`) exposes:
 |----------|----------|
 | `GET /` | HTML dashboard — grid of all cameras with latest snapshots |
 | `GET /live` | HTML live 2×2 camera grid (go2rtc players embedded via `iframe`) |
+| `GET /recordings` | HTML NVR recordings timeline page (needs `nvr` config) |
+| `GET /recordings/search` | JSON list of NVR recording segments (date/camera/types) |
+| `GET /recordings/download` | Download one NVR segment remuxed to MP4 |
 | `GET /ping` | Plain text `pong` (used by Homarr health checks) |
 | `GET /health` | `{"status": "ok"}` |
 | `GET /latest/{camera}.jpg` | Latest detection snapshot (JPEG, no-cache) |
@@ -123,6 +126,8 @@ The FastAPI server (`sentinel.web`) exposes:
 The dashboard, live grid and image/clip endpoints are intended to be consumed by Home Assistant's Generic Camera integration and homepage dashboards.
 
 The live grid embeds each camera's go2rtc player directly, so the browser plays full-resolution, low-latency stream (smooth, no blackouts) and sends no video through Sentinel itself. A tiny "Sentinel" link in the corner returns to the dashboard.
+
+For the NVR timeline, Sentinel talks to the NVR's proprietary XML gateway (`/cgi-bin/gw.cgi` `recsearch` for the segment list) and `/cgi-bin/flv.cgi` for segments. Segments are remuxed FLV→MP4 with `ffmpeg -c copy` (no re-encode). NVR credentials stay server-side; `/recordings/download` proxies the remuxed MP4 to the browser. NVR calls are serialized (single-session devices) and only happen on explicit user actions.
 
 ---
 
