@@ -22,6 +22,9 @@ Sentinel was created as a modern replacement for DOODS, taking advantage of curr
 <div align="center">
   <img src=docs/live-view.png alt="Sentinel logo" width="600"/>
 </div>
+
+
+---
 ## Features
 
 - Snapshot-based object detection
@@ -37,7 +40,7 @@ Sentinel was created as a modern replacement for DOODS, taking advantage of curr
 - Video clip recording with rolling buffer (optional)
 - Native-aspect clip recording (no distortion of 4:3 sub streams)
 - High-res main-stream snapshot saves (`go2rtc_save_src`)
-- Live 2×2 camera grid (motion-JPEG relay, main/sub toggle, solo fullscreen)
+- Live 2×2 camera grid (iframes from go2rtc)
 - Token/basic-authenticated web dashboard
 - Automatic snapshot retention and cleanup
 - Configurable logging levels
