@@ -11,7 +11,17 @@ Instead of processing continuous RTSP video streams, Sentinel periodically polls
 Sentinel was created as a modern replacement for DOODS, taking advantage of current YOLO models, OpenVINO acceleration and inexpensive Intel N100-class hardware.
 
 ---
+## Dashboard
+<div align="center">
+  <img src=docs/dashboard.png alt="Sentinel logo" width="600"/>
+</div>
 
+---
+
+## Live View
+<div align="center">
+  <img src=docs/live-view.png alt="Sentinel logo" width="600"/>
+</div>
 ## Features
 
 - Snapshot-based object detection
