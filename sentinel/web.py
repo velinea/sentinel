@@ -577,7 +577,12 @@ RECORDINGS_HTML = """\
   .controls input, .controls select { background: #2a2a2a; color: #fff;
            border: 1px solid #444; border-radius: 6px; padding: 0.4rem 0.5rem;
            font-size: 0.8rem; color-scheme: dark; }
-  .controls input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8); }
+  .controls input[type="date"] {
+           background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23cfcfcf' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='18' rx='2' ry='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/></svg>");
+           background-repeat: no-repeat; background-position: right 0.5rem center;
+           padding-right: 2rem; cursor: pointer; }
+  .controls input[type="date"]::-webkit-calendar-picker-indicator {
+           opacity: 0; }
   .controls button { background: #2a5; color: #fff; border: none; border-radius: 6px;
            padding: 0.4rem 0.9rem; font-size: 0.8rem; cursor: pointer; }
   .controls button:disabled { background: #444; cursor: default; }
