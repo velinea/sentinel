@@ -521,7 +521,9 @@ class ClipManager:
                 fps=config.clips.fps,
                 crf=config.clips.crf,
                 stretch_4_3_to_16_9=(
-                    config.clips.stretch_4_3_to_16_9
+                    camera.stretch_4_3_to_16_9
+                    if camera.stretch_4_3_to_16_9 is not None
+                    else config.clips.stretch_4_3_to_16_9
                 ),
             )
 

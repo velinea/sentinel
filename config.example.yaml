@@ -116,7 +116,10 @@ cameras:
 #       - person
 #       - cat
 
-# Example: per-camera go2rtc override + public live link
+# Example: per-camera aspect override
+# The global clips.stretch_4_3_to_16_9 applies unless a camera overrides
+# it. Set false to keep this camera's clips native (e.g. a camera whose
+# sensor itself is 4:3 and only its main stream was switched to 16:9).
 # cameras:
 #   - name: reolink
 #     entity: camera.reolink_fluent
@@ -125,5 +128,6 @@ cameras:
 #     go2rtc_stream_url: https://reolink.example.com  # public live link URL
 #     go2rtc_src: reolink_sub
 #     go2rtc_save_src: reolink_main
+#     stretch_4_3_to_16_9: false
 #     objects:
 #       - person

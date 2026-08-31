@@ -160,7 +160,9 @@ clips:
 | crf | H.264 encoding quality (lower = better, 0-51) |
 | fps | Frames per second for the output clip |
 | skip_detection_during_recording | Skip detection polling while a clip is being recorded (default: `true`) |
-| stretch_4_3_to_16_9 | Force-stretch 4:3 sub streams to 16:9 in saved clips (default: `false` — clips keep the camera's native aspect) |
+| stretch_4_3_to_16_9 | Force-stretch 4:3 sub streams to 16:9 in saved clips (default: `false` — clips keep the camera's native aspect). Override per camera via `cameras[].stretch_4_3_to_16_9` |
+
+Some cameras (e.g. a reolink with a true 4:3 sensor) should keep their native 4:3 even when most of your cameras are stretched — set `stretch_4_3_to_16_9: false` on that camera to opt it out.
 
 Clips are always recorded from the camera's `go2rtc_src` (sub) stream. The main stream (`go2rtc_save_src`) is used only for high-res detection snapshots.
 
@@ -215,6 +217,7 @@ cameras:
 | notify_title | Event title (defaults to camera name) |
 | clip_enabled | Disable clip recording for this camera (default: `true` when global clips enabled) |
 | clip_max_seconds | Maximum clip length for this camera (overrides global) |
+| stretch_4_3_to_16_9 | Per-camera override of global `clips.stretch_4_3_to_16_9` (overrides global) |
 
 #### Home Assistant events
 

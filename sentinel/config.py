@@ -27,6 +27,7 @@ class CameraConfig(BaseModel):
     notify_title: str | None = None
     clip_enabled: bool | None = None
     clip_max_seconds: int | None = None
+    stretch_4_3_to_16_9: bool | None = None
 
 
 class InferenceConfig(BaseModel):
