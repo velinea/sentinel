@@ -574,9 +574,10 @@ RECORDINGS_HTML = """\
   .controls { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;
               margin-bottom: 1rem; }
   .controls label { font-size: 0.8rem; color: #999; }
-  .controls input, .controls select { background: #222; color: #ddd;
-           border: 1px solid #333; border-radius: 6px; padding: 0.4rem 0.5rem;
-           font-size: 0.8rem; }
+  .controls input, .controls select { background: #2a2a2a; color: #fff;
+           border: 1px solid #444; border-radius: 6px; padding: 0.4rem 0.5rem;
+           font-size: 0.8rem; color-scheme: dark; }
+  .controls input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8); }
   .controls button { background: #2a5; color: #fff; border: none; border-radius: 6px;
            padding: 0.4rem 0.9rem; font-size: 0.8rem; cursor: pointer; }
   .controls button:disabled { background: #444; cursor: default; }
