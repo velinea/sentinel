@@ -489,10 +489,21 @@ async def recordings_download(
 ):
     client = _nvr_or_404()
 
-    if channel < 1 or channel > 8:
-        raise HTTPException(status_code=400, detail="Invalid channel (1-8)")
+    if channel < 0 or channel > 3:
+        raise HTTPException(status_code=400, detail="Invalid channel (0-3)")
 
     tmpdir = Path(tempfile.mkdtemp(prefix="nvr_dl_"))
+
+    def _cleanup():
+        for p in tmpdir.iterdir():
+            try:
+                p.unlink(missing_ok=True)
+            except OSError:
+                pass
+        try:
+            tmpdir.rmdir()
+        except OSError:
+            pass
 
     try:
         flv_path = tmpdir / f"seg_{channel}_{begin}_{end}.flv"
@@ -526,22 +537,12 @@ async def recordings_download(
                 + stderr.decode(errors="replace")[-500:],
             )
     except NvrError as exc:
+        # Free the large temp files immediately on failure.
+        _cleanup()
         raise HTTPException(status_code=502, detail=str(exc))
-    finally:
-        # Remove the (large) FLV; keep the MP4 until the response is served.
-        for p in tmpdir.glob("*.flv"):
-            p.unlink(missing_ok=True)
-
-    def _cleanup():
-        for p in tmpdir.iterdir():
-            try:
-                p.unlink(missing_ok=True)
-            except OSError:
-                pass
-        try:
-            tmpdir.rmdir()
-        except OSError:
-            pass
+    except Exception:
+        _cleanup()
+        raise
 
     return FileResponse(
         mp4_path,
@@ -668,7 +669,11 @@ function doSearch() {
 
   var url = '/recordings/search?date=' + encodeURIComponent(date)
     + '&camera=' + encodeURIComponent(cam) + '&types=' + types;
-  fetch(url)
+
+  var controller = (window.AbortController) ? new AbortController() : null;
+  var timer = (controller) ? setTimeout(function () { controller.abort(); }, 20000) : null;
+
+  fetch(url, controller ? { signal: controller.signal } : {})
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (data.error) {
@@ -680,9 +685,11 @@ function doSearch() {
       btn.disabled = false;
     })
     .catch(function (err) {
-      document.getElementById('results').innerHTML = '<div class="error">Failed: ' + err + '</div>';
+      var msg = (err && err.name === 'AbortError') ? 'Request timed out' : ('Failed: ' + err);
+      document.getElementById('results').innerHTML = '<div class="error">' + msg + '</div>';
       btn.disabled = false;
-    });
+    })
+    .finally(function () { if (timer) clearTimeout(timer); });
 }
 
 function renderTable(segs, cam) {
