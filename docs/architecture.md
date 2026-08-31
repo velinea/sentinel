@@ -114,8 +114,7 @@ The FastAPI server (`sentinel.web`) exposes:
 | Endpoint | Response |
 |----------|----------|
 | `GET /` | HTML dashboard — grid of all cameras with latest snapshots |
-| `GET /live` | HTML live 2×2 camera grid (motion-JPEG tiles) |
-| `GET /live/mjpeg/{camera}` | Live motion-JPEG stream for one camera (`?res=main|sub`) |
+| `GET /live` | HTML live 2×2 camera grid (go2rtc players embedded via `iframe`) |
 | `GET /ping` | Plain text `pong` (used by Homarr health checks) |
 | `GET /health` | `{"status": "ok"}` |
 | `GET /latest/{camera}.jpg` | Latest detection snapshot (JPEG, no-cache) |
@@ -123,7 +122,7 @@ The FastAPI server (`sentinel.web`) exposes:
 
 The dashboard, live grid and image/clip endpoints are intended to be consumed by Home Assistant's Generic Camera integration and homepage dashboards.
 
-The live grid relays frames from each camera's LAN go2rtc URL, so browsers never need direct access to go2rtc. This makes it work through the same public reverse proxy/tunnel and token auth as the rest of the dashboard.
+The live grid embeds each camera's go2rtc player directly, so the browser plays full-resolution, low-latency stream (smooth, no blackouts) and sends no video through Sentinel itself. A tiny "Sentinel" link in the corner returns to the dashboard.
 
 ---
 

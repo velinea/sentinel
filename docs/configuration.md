@@ -340,17 +340,15 @@ web:
 
 ## Live camera grid
 
-`GET /live` renders a fullscreen 2×2 grid of live video for every camera that has a main stream (`go2rtc_save_src`) configured — or only the subset named by `web.live_cameras`. Tiles are served as motion-JPEG through:
+`GET /live` renders a fullscreen 2×2 grid of live video for every camera that has a main stream (`go2rtc_save_src`) configured — or only the subset named by `web.live_cameras`. Each tile is go2rtc's own player embedded in an `iframe` aimed at the camera's public base URL:
 
 ```
-GET /live/mjpeg/{camera}?res=main|sub
+https://<go2rtc host>/stream.html?src=<go2rtc_save_src>
 ```
 
-- `res=main` (default) streams `go2rtc_save_src`; `res=sub` streams `go2rtc_src` (about 10× less bandwidth).
-- Use the **Main/Sub** buttons above the grid to switch, tap a tile for solo fullscreen (tap again to return), and dead tiles reconnect automatically.
-- The **Fullscreen…** dropdown in the toolbar opens any camera (including ones not in the grid) in a full-screen solo view — useful for a high-res camera such as a 2560×1440 main stream.
-- Frames are JPEG snapshots pulled from each camera's LAN go2rtc (`go2rtc_url` or the global `go2rtc.url`) — the browser never needs direct access to go2rtc, and nothing routes through a public `stream_url`. Full-res main streams encode at roughly 0.5–1.5 fps; sub streams are noticeably smoother.
-- All `/live` endpoints require the same auth as the rest of the dashboard.
+The base URL is the camera's `go2rtc_stream_url`, or its `go2rtc_url`, then the global `go2rtc.stream_url` / `go2rtc.url`. Because the browser plays go2rtc's full-resolution WebRTC stream directly (smooth video, low latency, no blackouts), the same reachability note applies as the dashboard live links: this works smoothly on your local network; remote viewers using only the Sentinel host need the go2rtc host be reachable too (partner remote viewing was intentionally traded off).
+
+The four tiles are maximal — no titles or chrome — and `web.live_cameras` controls which cameras appear and their order.
 
 ## Complete example
 
