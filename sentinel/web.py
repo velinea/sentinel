@@ -234,13 +234,13 @@ def _build_index() -> HTMLResponse:
 <div class="card">
   <div class="card-header">{dot} {name}</div>
   <div class="card-body">
-    <img src="/latest/{name}.jpg{img_v}" alt="{name}" loading="lazy">
+    <a href="/latest/{name}.mp4{clip_v}"><img src="/latest/{name}.jpg{img_v}" alt="{name}" loading="lazy"></a>
   </div>
   <div class="card-footer">
     <span class="muted">{objects}</span>
     {error_html}
     &mdash;
-    <a href="/latest/{name}.mp4{clip_v}">latest clip</a>{live_links}
+    {live_links}
   </div>
 </div>"""
         cards.append(card)
